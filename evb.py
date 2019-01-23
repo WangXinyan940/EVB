@@ -98,8 +98,10 @@ class EVBHamiltonian(object):
     def __init__(self, conf):
         self.diag = []
         self.off_diag = []
+        self.V = []
         for d in conf["diag"]:
             pdbname, xmlname = d["topology"], d["parameter"]
+            self.V.append(d["V"])
             ff = app.ForceField(xmlname)
             pdb = app.PDBFile(pdbname)
             system = ff.createSystem(pdb.topology, nonbondedMethod=app.NoCutoff,
@@ -163,7 +165,7 @@ class EVBHamiltonian(object):
         for n, i in enumerate(self.diag):
             etmp = self._calc_energy_from_context(
                 xyz, i).value_in_unit(unit.kilojoule / unit.mole)
-            self.emat[n, n] = etmp
+            self.emat[n, n] = etmp + self.V[n]
         for j in self.off_diag:
             res = self._calc_energy_of_off_diag(
                 xyz, j)
