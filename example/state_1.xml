@@ -1,0 +1,64 @@
+<ForceField>
+ <Info>
+  <Source>-x</Source>
+  <DateGenerated>2019-01-18</DateGenerated>
+  <Reference></Reference>
+ </Info>
+ <AtomTypes>
+  <Type name="16" class="16" element="Br" mass="79.904"/>
+  <Type name="401" class="401" element="C" mass="12.011"/>
+  <Type name="402" class="402" element="Cl" mass="35.453"/>
+  <Type name="403" class="403" element="H" mass="1.008"/>
+ </AtomTypes>
+ <Residues>
+  <Residue name="SYS">
+   <Atom name="C" type="401" />
+   <Atom name="H" type="403" />
+   <Atom name="H2" type="403" />
+   <Atom name="H3" type="403" />
+   <Atom name="Cl" type="402" />
+   <Atom name="Br" type="16" />
+   <Bond from="0" to="1" />
+   <Bond from="0" to="2" />
+   <Bond from="0" to="3" />
+   <Bond from="0" to="4" />
+  </Residue>
+ </Residues>
+ <AmoebaBondForce bond-cubic="-25.5" bond-quartic="379.3125">
+  <Bond class1="401" class2="403" length="0.1087" k="167845.344"/>
+  <Bond class1="401" class2="402" length="0.17792" k="77152.96"/>
+ </AmoebaBondForce>
+ <AmoebaAngleForce angle-cubic="-0.014" angle-quartic="5.6e-05" angle-pentic="-7e-07" angle-sextic="2.2e-08">
+  <Angle class1="403" class2="401" class3="403" k="0.038184597760361885" angle1="115.71"  /> 
+  <Angle class1="403" class2="401" class3="402" k="0.05630826198440548" angle1="112.32"  /> 
+ </AmoebaAngleForce>
+ <AmoebaOutOfPlaneBendForce type="ALLINGER" opbend-cubic="-0.014" opbend-quartic="5.6e-05" opbend-pentic="-7e-07" opbend-sextic="2.2e-08">
+ </AmoebaOutOfPlaneBendForce>
+ <PeriodicTorsionForce>
+ </PeriodicTorsionForce>
+ <AmoebaPiTorsionForce piTorsionUnit="1.0">
+ </AmoebaPiTorsionForce>
+ <AmoebaStretchBendForce stretchBendUnit="1.0">
+  <StretchBend class1="402" class2="401" class3="403" k1="8.397826228907983" k2="13.655595693963415" />
+</AmoebaStretchBendForce>
+ <AmoebaTorsionTorsionForce >
+</AmoebaTorsionTorsionForce>
+ <AmoebaVdwForce type="BUFFERED-14-7" radiusrule="CUBIC-MEAN" radiustype="R-MIN" radiussize="DIAMETER" epsilonrule="HHG" vdw-13-scale="0.0" vdw-14-scale="1.0" vdw-15-scale="1.0" >
+  <Vdw class="16" sigma="0.43200000000000005" epsilon="1.79912" reduction="1.0" /> 
+  <Vdw class="401" sigma="0.382" epsilon="0.42258400000000007" reduction="1.0" /> 
+  <Vdw class="402" sigma="0.38980000000000004" epsilon="1.727992" reduction="1.0" /> 
+  <Vdw class="403" sigma="0.296" epsilon="0.100416" reduction="0.920" /> 
+ </AmoebaVdwForce>
+ <AmoebaMultipoleForce  direct11Scale="0.0"  direct12Scale="1.0"  direct13Scale="1.0"  direct14Scale="1.0"  mpole12Scale="0.0"  mpole13Scale="0.0"  mpole14Scale="0.4"  mpole15Scale="0.8"  mutual11Scale="1.0"  mutual12Scale="1.0"  mutual13Scale="1.0"  mutual14Scale="1.0"  polar12Scale="0.0"  polar13Scale="0.0"  polar14Intra="0.5"  polar14Scale="1.0"  polar15Scale="1.0"  > 
+  <Multipole type="16" kz="0" kx="0" c0="-1.00000" d1="0.0" d2="0.0" d3="0.0" q11="0.0" q21="0.0" q22="0.0" q31="0.0" q32="0.0" q33="0.0"  />
+  <Multipole type="401" kz="402" kx="403" c0="-0.17562" d1="0.0" d2="0.0" d3="0.00831601983299185" q11="-0.0002535471545636222" q21="0.0" q22="-0.0002535471545636222" q31="0.0" q32="0.0" q33="0.0005070943091272445"  />
+  <Multipole type="402" kz="401" kx="403" c0="-0.11820" d1="0.0" d2="0.0" d3="0.01859369957822683" q11="-0.0009427346747215756" q21="0.0" q22="-0.0009429867003878576" q31="0.0" q32="0.0" q33="0.0018857213751094332"  />
+  <Multipole type="403" kz="401" kx="402" c0="0.09794" d1="0.00089113441926556" d2="0.0" d3="-0.0024601448427349097" q11="-9.763660997443173e-06" q21="0.0" q22="-2.8609580264974495e-05" q31="-8.587541221460534e-07" q32="0.0" q33="3.8373241262417664e-05"  />
+  <Polarize type="16" polarizability="0.0056500000000000005" thole="0.3900" />
+  <Polarize type="401" polarizability="0.0013340000000000001" thole="0.3900" pgrp1="403" pgrp2="402" />
+  <Polarize type="403" polarizability="0.000496" thole="0.3900" pgrp1="401" />
+  <Polarize type="402" polarizability="0.0025" thole="0.3900" pgrp1="401" />
+ </AmoebaMultipoleForce>
+ <AmoebaUreyBradleyForce cubic="0.0" quartic="0.0"  >
+ </AmoebaUreyBradleyForce>
+</ForceField>

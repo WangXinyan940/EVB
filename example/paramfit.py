@@ -1,5 +1,7 @@
 import sys
 import os
+import json
+import pdb
 import numpy as np
 import simtk.unit as unit
 from scipy import optimize
@@ -8,7 +10,8 @@ sys.path.append("..")
 import evb
 
 QMDATA = "qm/"
-TEMPFILE = "conf."
+TEMPFILE = "conf.temp"
+VAR = np.array([9.31456673, 11.47613159, -1.25352744,  0.41868175, -3.44075693, 13.10103445,  1.57885877])
 
 
 def findline(text, parser):
@@ -45,24 +48,33 @@ def getGaussianGradient(fname):
 
 
 def genScoreFunc(xyzs, grads, template):
+    """
+    Generate score func.
+    """
     def valid(var):
         """
         Return score::float
         """
-        #gen config file
-        #gen halmitonian
+        # gen config file
+        conf = json.loads(template.render(var=var))
+        # gen halmitonian
         H = evb.EVBHamiltonian(conf)
-        #calc forces
+        # calc forces
         error = []
         for n, xyz in enumerate(xyzs):
             energy, gradient = H.calcEnergyGrad(xyz)
             error.append(gradient - grads[n])
-        #compare
-        error = [i.value for i in error]
+        # compare
+        error = [np.abs(i.value_in_unit(
+            unit.kilojoule_per_mole / unit.angstrom)) for i in error]
+        return sum(error).sum() / len(error) / error[0].shape[0] / error[0].shape[1]
     return valid
 
 
 def main():
+    """
+    Main function to parameterize.
+    """
     global QMDATA
     global TEMPFILE
     global VAR
@@ -70,7 +82,7 @@ def main():
     fnames = os.listdir(QMDATA)
     xyzs, grads = [], []
     for fname in fnames:
-        txyz, tgrad = getGaussianGradient(QMDATA+fname)
+        txyz, tgrad = getGaussianGradient(QMDATA + fname)
         xyzs.append(txyz)
         grads.append(tgrad)
 
@@ -78,7 +90,9 @@ def main():
         template = Template("".join(f))
 
     validfunc = genScoreFunc(xyzs, grads, template)
-    min_result = optimize.minimize(validfunc, var, method='L-BFGS-B', jac=True, options=dict(maxiter=1000, disp=True, gtol=0.01))
+    min_result = optimize.minimize(
+        validfunc, VAR, jac="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.01))
+    print(min_result)
 
 
 if __name__ == '__main__':

@@ -3,12 +3,12 @@
         {
             "topology":"state_1.pdb",
             "parameter":"state_1.xml",
-            "V":"0.0"
+            "V":{{ var[0] }}
         },
         {
             "topology":"state_2.pdb",
             "parameter":"state_2.xml",
-            "V":"0.0"
+            "V":{{ var[1] }}
         }
     ],
     "off_diag":[
@@ -20,8 +20,8 @@
                 ["B", 1, 6],
                 ["A", 5, 1, 6]
             ],
-            "parameter":[3.0,3.0,3.0,4.0],
-            "A":2.0
+            "parameter":[{{ var[2] }},{{ var[3] }},{{ var[4] }},{{ var[5] }}],
+            "A":{{ var[6] }}
         }
-    ],
+    ]
 }
