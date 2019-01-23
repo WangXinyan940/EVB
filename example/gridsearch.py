@@ -190,10 +190,30 @@ def main():
     gfunc = genGradScore(xyzs, grads, template)
     tfunc = genTotalScore(xyzs, eners, grads, template)
 
-    min_result = optimize.brute(tfunc, ((-20.0,-0.0),(0.0,2.0),(0.0,1.0),(0.0,20.0),(-0.2,0)), Ns=50, full_output=True)
-    print(min_result)
+    v1 = np.linspace(-20.0,-0.0, 20)
+    v2 = np.linspace(0.0,2.0, 20)
+    v3 = np.linspace(0.0,1.0, 20)
+    v4 = np.linspace(0.0,20.0, 20)
+    v5 = np.linspace(-0.2,0, 20)
 
-    drawPicture(xyzs, eners, grads, min_result.x, template)
+    V1, V2, V3, V4, V5 = np.meshgrid(v1, v2, v3, v4, v5)
+    vmin = None
+    emin = 99999.0
+    for i1 in range(20):
+        for i2 in range(20):
+            for i3 in range(20):
+                for i4 in range(20):
+                    for i5 in range(20):
+                        var = np.array([V1[i1,i2,i3,i4,i5],V2[i1,i2,i3,i4,i5],V3[i1,i2,i3,i4,i5],V4[i1,i2,i3,i4,i5],V5[i1,i2,i3,i4,i5]])
+                        e = tfunc(var)
+                        if e < emin:
+                            emin = e
+                            vmin = var
+                            print("E:",e)
+                            print("VAR:")
+                            print(var)
+
+    drawPicture(xyzs, eners, grads, vmin, template)
 
 
 
