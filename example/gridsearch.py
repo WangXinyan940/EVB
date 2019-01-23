@@ -189,7 +189,8 @@ def main():
     efunc = genEnergyScore(xyzs, eners, template)
     gfunc = genGradScore(xyzs, grads, template)
     tfunc = genTotalScore(xyzs, eners, grads, template)
-    min_result = optimize.minimize(tfunc, VAR, jac="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.01))
+
+    min_result = optimize.brute(tfunc, ((-20.0,-0.0),(0.0,2.0),(0.0,1.0),(0.0,20.0),(-0.2,0)), Ns=50, full_output=True)
     print(min_result)
 
     drawPicture(xyzs, eners, grads, min_result.x, template)

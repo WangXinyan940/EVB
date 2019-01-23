@@ -157,10 +157,7 @@ class EVBHamiltonian(object):
                 dpoly[k, :] = dpoly[k, :] + conf["parameter"][n] * gk
         return unit.Quantity(value=e * dpoly, unit=unit.kilojoule / unit.mole / unit.angstrom)
 
-    def calcEnergy(self, xyz):
-        """
-        Calculate energy.
-        """
+    def _calc_energy(self, xyz):
         # return energy
         for n, i in enumerate(self.diag):
             etmp = self._calc_energy_from_context(
@@ -175,11 +172,19 @@ class EVBHamiltonian(object):
         e, v = np.linalg.eig(self.emat)
         return e, v
 
+    def calcEnergy(self, xyz):
+        """
+        Calculate energy.
+        """
+        e, v = self._calc_energy(xyz)
+        return unit.Quantity(value=np.min(e), unit=unit.kilojoule / unit.mole)
+
+
     def calcEnergyGrad(self, xyz):
         """
         Calculate energy and gradient.
         """
-        e, v = self.calcEnergy(xyz)
+        e, v = self._calc_energy(xyz)
         ei = np.argmin(e)
 
         gradient = unit.Quantity(value=np.zeros(
