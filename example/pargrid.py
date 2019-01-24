@@ -12,7 +12,7 @@ import matplotlib.pyplot as plt
 
 QMDATA = "qm/"
 TEMPFILE = "conf.temp"
-VAR = np.array([-15.0,  0.96,  0.53, 10.00, 0.10, -0.00045571])
+VAR = np.array([-36.61,  0.9652,  0.7561, -0.2479, 3.4120,  0.4087])
 NPROC = 8
 
 
@@ -168,7 +168,7 @@ def drawPicture(xyzs, eners, grads, var, template):
 
 
 
-def main():
+def genWorker():
     """
     Main function to parameterize.
     """
@@ -191,13 +191,25 @@ def main():
     gfunc = genGradScore(xyzs, grads, template)
     tfunc = genTotalScore(xyzs, eners, grads, template)
 
-    min_result = optimize.brute(tfunc, ((-20.0,-0.0),(0.0,2.0),(0.0,1.0),(0.0,20.0),(-0.2,0)), Ns=20)
-    print(min_result)
-
-    drawPicture(xyzs, eners, grads, min_result[0], template)
-
+    def worker(var):
+        return var,tfunc(var)
+    return worker
 
 
+-36.61,  0.9652,  0.7561, -0.2479, 3.4120,  0.4087
 
 if __name__ == '__main__':
-    main()
+    import multiprocessing as mp 
+
+    pool = mp.Pool(NPROC)
+    worker = genWorker()
+    var_list = []
+    for ni in np.linspace(-45,-10,8):
+        for nj in np.linspace(0.0,2.0,11):
+            for nk in np.linspace(0.0,2.0,11):
+                for nl in np.linspace(-1.0,1.0,11):
+                    for nm in np.linspace(0.0,6.0,7):
+                        for nn in [0.001,0.01,0.1,1.0,10.0,100.0,1000.0]:
+                            var_list.append(np.array([ni, nj, nk, nl, nm, nn]))
+    res = pool.map(worker, var_list)
+    print(sorted(res, key=lambda x:x[1])[0])
