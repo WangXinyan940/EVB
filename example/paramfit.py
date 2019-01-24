@@ -136,7 +136,7 @@ def genTotalScore(xyzs, eners, grads, template):
         ref_grad = np.array([i.value_in_unit(
             unit.kilojoule_per_mole / unit.angstrom) for i in grads]).ravel()
         var_grad = np.sqrt(((calc_grad - ref_grad) ** 2).mean())
-        return var_grad + var_ener * 0.5
+        return var_grad + var_ener
     return valid
 
 def drawPicture(xyzs, eners, grads, var, template):
@@ -161,8 +161,8 @@ def drawPicture(xyzs, eners, grads, var, template):
     #plt.ylabel("Energy (kJ/mol)")
     plt.show()
 
-    calc_grad = np.array([i.value_in_unit(unit.kilojoule_per_mole / unit.angstrom) for i in calc_grad]).ravel()
-    ref_grad = np.array([i.value_in_unit(unit.kilojoule_per_mole / unit.angstrom) for i in grads]).ravel()
+    calc_grad = np.array([i.value_in_unit(unit.kilojoule_per_mole / unit.angstrom).ravel() for i in calc_grad]).ravel()
+    ref_grad = np.array([i.value_in_unit(unit.kilojoule_per_mole / unit.angstrom).ravel() for i in grads]).ravel()
     plt.plot([calc_grad.min(),calc_grad.max()],[calc_grad.min(),calc_grad.max()])
     plt.scatter(calc_grad, ref_grad)
     plt.xlabel("CALC GRADIENT")
@@ -193,7 +193,7 @@ def main():
     efunc = genEnergyScore(xyzs, eners, template)
     gfunc = genGradScore(xyzs, grads, template)
     tfunc = genTotalScore(xyzs, eners, grads, template)
-    min_result = optimize.minimize(gfunc, VAR, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.001))
+    min_result = optimize.minimize(gfunc, VAR, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=1, disp=True, gtol=0.001))
     print(min_result)
 
     drawPicture(xyzs, eners, grads, min_result.x, template)
