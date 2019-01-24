@@ -12,7 +12,8 @@ import matplotlib.pyplot as plt
 
 QMDATA = "qm/"
 TEMPFILE = "conf.temp"
-VAR = np.array([-36.61,  0.9652,  0.7561, -0.2479, 3.4120,  0.4087])
+VAR = np.array([-15.0,  0.96,  0.53, 10.00, 0.10, -0.00045571])
+NPROC = 8
 
 
 def findline(text, parser):
@@ -74,7 +75,7 @@ def genGradScore(xyzs, grads, template):
             unit.kilojoule_per_mole / unit.angstrom) for i in calc_grad]).ravel()
         ref_grad = np.array([i.value_in_unit(
             unit.kilojoule_per_mole / unit.angstrom) for i in grads]).ravel()
-        var_grad = np.sqrt(((calc_grad - ref_grad) ** 2).mean())
+        var_grad = ((calc_grad - ref_grad) ** 2).mean()
         return var_grad
     return valid
 
@@ -155,10 +156,6 @@ def drawPicture(xyzs, eners, grads, var, template):
     plt.scatter(calc_ener, ref_ener,c="red")
     plt.xlabel("CALC ENERGY")
     plt.ylabel("REF ENERGY")
-    #plt.plot(calc_ener, c="red")
-    #plt.plot(ref_ener, c="black")
-    #plt.xlabel("Sample")
-    #plt.ylabel("Energy (kJ/mol)")
     plt.show()
 
     calc_grad = np.array([i.value_in_unit(unit.kilojoule_per_mole / unit.angstrom) for i in calc_grad]).ravel()
@@ -193,10 +190,11 @@ def main():
     efunc = genEnergyScore(xyzs, eners, template)
     gfunc = genGradScore(xyzs, grads, template)
     tfunc = genTotalScore(xyzs, eners, grads, template)
-    min_result = optimize.minimize(gfunc, VAR, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.001))
+
+    min_result = optimize.brute(tfunc, ((-20.0,-0.0),(0.0,2.0),(0.0,1.0),(0.0,20.0),(-0.2,0)), Ns=20)
     print(min_result)
 
-    drawPicture(xyzs, eners, grads, min_result.x, template)
+    drawPicture(xyzs, eners, grads, min_result[0], template)
 
 
 

@@ -47,8 +47,7 @@ def getGaussianEnergyGradient(fname):
 
     return xyz, energy, grad
 
-var = np.array([-1.49996590e+01,  9.60948203e-01,
-                5.31417328e-01, 9.99990036e+00, -4.55710498e-04])
+var = np.array([-15.0,  0.96,  0.53, 1.00, 10.00, -0.00045571])
 
 with open("conf.temp", "r") as f:
     template = Template("".join(f))
@@ -71,12 +70,13 @@ for n in range(calc_grad.shape[0]):
         2. / unit.Quantity(value=dt, unit=unit.angstrom)
     calc_grad[n] = anal_grad.value_in_unit(
         unit.kilojoule / unit.mole / unit.angstrom)
-print("REF GRAD")
+print("ANALY GRAD")
 e, g = H.calcEnergyGrad(xyz)
 print(g.value_in_unit(unit.kilojoule / unit.mole / unit.angstrom))
-print("\nCALC GRAD")
+print("\nNUM GRAD")
 print(calc_grad.reshape(-1, 3))
 print("\nVAR")
 var = np.sqrt(((g.value_in_unit(unit.kilojoule / unit.mole /
                                 unit.angstrom) - calc_grad.reshape(-1, 3)) ** 2).mean())
+print(g.value_in_unit(unit.kilojoule / unit.mole / unit.angstrom) - calc_grad.reshape(-1, 3))
 print(var)

@@ -108,7 +108,7 @@ def main():
 
     validfunc = genScoreFunc(xyzs, grads, template)
 
-    var_set = [(np.random.random((VAR_SHAPE,)) - 0.5) * 2e3 for _ in range(INITSIZE)]
+    var_set = [randomGen((VAR_SHAPE,)) for _ in range(INITSIZE)]
     while True:
         score_set = [[v,validfunc(v)] for v in var_set]
         rem = sorted(score_set, key=lambda v:v[1])[:REMAIN]
