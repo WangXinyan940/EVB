@@ -127,10 +127,10 @@ def genXMLResidues(name_l, tp_l, topology):
 
 def genPDB(name_l, coord_l, topology):
     text = []
-    crdline = "HETATM{serial:>5d} {name:^4} {resname:>3} 1   1    {x:>8.3f}{y:>8.3f}{z:>8.3f}"
+    crdline = "HETATM{serial:>5d} {name:^4} {resname:>3} 1   1    {x:>8.3f}{y:>8.3f}{z:>8.3f}                      {elem:>2}"
     for n in range(len(name_l)):
         text.append(crdline.format(
-            serial=n + 1, name=name_l[n], resname="SYS", x=coord_l[n][0], y=coord_l[n][1], z=coord_l[n][2]))
+            serial=n + 1, name=name_l[n], resname="SYS", x=coord_l[n][0], y=coord_l[n][1], z=coord_l[n][2]), elem="".join(_ for _ in name_l if not _.isdigit()))
     for n in range(len(name_l)):
         outputstr = "CONECT{:>5d}".format(n + 1)
         if n + 1 in topology:
