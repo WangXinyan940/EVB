@@ -4,13 +4,13 @@
 """
 MS-EVB engine to calculate EVB energy and force.
 """
+import os
+import json
+import sys
 import numpy as np
 import simtk.openmm as mm
 import simtk.openmm.app as app
 import simtk.unit as unit
-import os
-import json
-import sys
 
 
 def distance(a, b):
@@ -52,6 +52,7 @@ def gradDistance(a, b):
 def gradAngle(a, b, c):
     """
     Calculate the a-b-c angle and the gradient.
+    WTF, gb is wrong.
     """
     v1 = a - b
     v2 = c - b
@@ -66,7 +67,24 @@ def gradAngle(a, b, c):
     return np.arccos(dt / r1 / r2), ga, gb, gc
 
 
-def gradDihedral(a, b, c, d, dt=0.0001):
+def numGradAngle(a, b, c, dt=0.00001):
+    dx, dy, dz = np.array([dt, 0.0, 0.0]), np.array(
+        [0.0, dt, 0.0]), np.array([0.0, 0.0, dt])
+    ga, gb, gc = np.zeros(dx.shape), np.zeros(dx.shape), np.zeros(dx.shape)
+    theta = angle(a, b, c)
+    ga[0] = (angle(a + dx, b, c) - angle(a - dx, b, c)) / 2.0 / dt
+    ga[1] = (angle(a + dy, b, c) - angle(a - dy, b, c)) / 2.0 / dt
+    ga[2] = (angle(a + dz, b, c) - angle(a - dz, b, c)) / 2.0 / dt
+    gb[0] = (angle(a, b + dx, c) - angle(a, b - dx, c)) / 2.0 / dt
+    gb[1] = (angle(a, b + dy, c) - angle(a, b - dy, c)) / 2.0 / dt
+    gb[2] = (angle(a, b + dz, c) - angle(a, b - dz, c)) / 2.0 / dt
+    gc[0] = (angle(a, b, c + dx) - angle(a, b, c - dx)) / 2.0 / dt
+    gc[1] = (angle(a, b, c + dy) - angle(a, b, c - dy)) / 2.0 / dt
+    gc[2] = (angle(a, b, c + dz) - angle(a, b, c - dz)) / 2.0 / dt
+    return theta, ga, gb, gc
+
+
+def gradDihedral(a, b, c, d, dt=0.00001):
     """
     Calculate the a-b-c-d dihedral angle and the gradient.
     """
@@ -151,7 +169,7 @@ class EVBHamiltonian(object):
                 dpoly[j, :] = dpoly[j, :] + conf["parameter"][n] * gj
             elif c[0] == "A":
                 i, j, k = c[1] - 1, c[2] - 1, c[3] - 1
-                _, gi, gj, gk = gradAngle(crd[i, :], crd[j, :], crd[k, :])
+                _, gi, gj, gk = numGradAngle(crd[i, :], crd[j, :], crd[k, :])
                 dpoly[i, :] = dpoly[i, :] + conf["parameter"][n] * gi
                 dpoly[j, :] = dpoly[j, :] + conf["parameter"][n] * gj
                 dpoly[k, :] = dpoly[k, :] + conf["parameter"][n] * gk
@@ -168,7 +186,6 @@ class EVBHamiltonian(object):
                 xyz, j)
             self.emat[j["from"] - 1, j["to"] - 1] = res
             self.emat[j["to"] - 1, j["from"] - 1] = res
-
         e, v = np.linalg.eig(self.emat)
         return e, v
 
@@ -178,7 +195,6 @@ class EVBHamiltonian(object):
         """
         e, v = self._calc_energy(xyz)
         return unit.Quantity(value=np.min(e), unit=unit.kilojoule / unit.mole)
-
 
     def calcEnergyGrad(self, xyz):
         """
