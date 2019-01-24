@@ -196,14 +196,29 @@ def genWorker():
     return worker
 
 
--36.61,  0.9652,  0.7561, -0.2479, 3.4120,  0.4087
 
 if __name__ == '__main__':
     import multiprocessing as mp 
 
     pool = mp.Pool(NPROC)
-    worker = genWorker()
+    
     var_list = []
+    fnames = os.listdir(QMDATA)
+    xyzs, eners, grads = [], [], []
+    for fname in fnames:
+        txyz, tener, tgrad = getGaussianEnergyGradient(QMDATA + fname)
+        xyzs.append(txyz)
+        eners.append(tener)
+        grads.append(tgrad)
+    with open(TEMPFILE, "r") as f:
+        template = Template("".join(f))
+    efunc = genEnergyScore(xyzs, eners, template)
+    gfunc = genGradScore(xyzs, grads, template)
+    tfunc = genTotalScore(xyzs, eners, grads, template)
+
+    def worker(var):
+        return var,tfunc(var)
+
     for ni in np.linspace(-45,-10,8):
         for nj in np.linspace(0.0,2.0,11):
             for nk in np.linspace(0.0,2.0,11):
