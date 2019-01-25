@@ -198,10 +198,6 @@ def genWorker():
 
 
 if __name__ == '__main__':
-    import multiprocessing as mp 
-
-    pool = mp.Pool(NPROC)
-    
     var_list = []
     fnames = os.listdir(QMDATA)
     xyzs, eners, grads = [], [], []
@@ -224,7 +220,7 @@ if __name__ == '__main__':
             for nk in np.linspace(0.0,2.0,11):
                 for nl in np.linspace(-1.0,1.0,11):
                     for nm in np.linspace(0.0,6.0,7):
-                        for nn in [0.0001,0.001,0.01,0.1,1.0,10.0,100.0,1000.0]:
+                        for nn in [0.01,0.1]:
                             var_list.append(np.array([ni, nj, nk, nl, nm, nn]))
-    res = pool.map(worker, var_list)
+    res = [worker(v) for v in var_list]
     print(sorted(res, key=lambda x:x[1])[0])
