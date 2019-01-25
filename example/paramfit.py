@@ -14,12 +14,12 @@ QMDATA = "qm/"
 TEMPFILE = "conf.temp"
 STATE_TEMPFILE = ["state_1.temp", "state_2.temp"]
 VAR = np.array([-35.000,  0.5870,  0.5664, -0.0232886395,
-                 2.4108,  1.7586,  0.10749,  167845.344,
-                 0.1813,  77152.96,  0.010051,  115.705145,
-                 0.0283,  112.2809,  8.359835,  13.6440055,
-                 0.1076,  162364.304,  0.1900658,  59835.384,
-                 0.0624,  94.8828612,  0.1157697,  99.824709,
-                 8.4451,  13.6449845])
+                2.4108,  1.7586,  0.10749,  167845.344,
+                0.1813,  77152.96,  0.010051,  115.705145,
+                0.0283,  112.2809,  8.359835,  13.6440055,
+                0.1076,  162364.304,  0.1900658,  59835.384,
+                0.0624,  94.8828612,  0.1157697,  99.824709,
+                8.4451,  13.6449845])
 
 
 def findline(text, parser):
@@ -68,7 +68,7 @@ def genGradScore(xyzs, grads, template, state_templates=[]):
         Return score::float
         """
         for name, temp in state_templates:
-            with open("%s.xml"%name, "w") as f:
+            with open("%s.xml" % name, "w") as f:
                 f.write(temp.render(var=np.abs(var)))
         # gen config file
         conf = json.loads(template.render(var=var))
@@ -98,7 +98,7 @@ def genEnergyScore(xyzs, ener, template, state_templates=[]):
         Return score::float
         """
         for name, temp in state_templates:
-            with open("%s.xml"%name, "w") as f:
+            with open("%s.xml" % name, "w") as f:
                 f.write(temp.render(var=np.abs(var)))
         # gen config file
         conf = json.loads(template.render(var=var))
@@ -128,7 +128,7 @@ def genTotalScore(xyzs, eners, grads, template, state_templates=[]):
         """
         # gen state files
         for name, temp in state_templates:
-            with open("%s.xml"%name, "w") as f:
+            with open("%s.xml" % name, "w") as f:
                 f.write(temp.render(var=np.abs(var)))
         # gen config file
         conf = json.loads(template.render(var=var))
@@ -160,7 +160,7 @@ def genTotalScore(xyzs, eners, grads, template, state_templates=[]):
 def drawPicture(xyzs, eners, grads, var, template, state_templates=[]):
 
     for name, temp in state_templates:
-        with open("%s.xml"%name, "w") as f:
+        with open("%s.xml" % name, "w") as f:
             f.write(temp.render(var=np.abs(var)))
 
     conf = json.loads(template.render(var=var))
@@ -221,14 +221,41 @@ if __name__ == '__main__':
 
     efunc = genEnergyScore(xyzs, eners, template)
     gfunc = genGradScore(xyzs, grads, template)
-    tfunc = genTotalScore(xyzs, eners, grads, template, state_templates=state_templates)
-    drawPicture(xyzs, eners, grads, VAR, template, state_templates=state_templates)
+    tfunc = genTotalScore(xyzs, eners, grads, template,
+                          state_templates=state_templates)
+    drawPicture(xyzs, eners, grads, VAR, template,
+                state_templates=state_templates)
+
     def print_func(x, f, accepted):
         print("Round finished.")
         print(x)
-        print("at minimum %.4f accepted %d"%(f, int(accepted)))
-    min_result = optimize.basinhopping(tfunc, VAR, minimizer_kwargs={"method":"L-BFGS-B", "jac":"2-point","options":dict(maxiter=1000, disp=True, gtol=0.01)}, niter=10, callback=print_func, disp=True)
+        print("at minimum %.4f accepted %d" % (f, int(accepted)))
+
+    class MyBounds(object):
+        def __init__(self, xmax=[], xmin=[]):
+            self.xmax = np.array(xmax)
+            self.xmin = np.array(xmin)
+
+        def __call__(self, **kwargs):
+            x = kwargs["x_new"]
+            tmax = bool(np.all(x <= self.xmax))
+            tmin = bool(np.all(x >= self.xmin))
+            return tmax and tmin
+
+    var_limit = ((-4.5e1, 0.000), (0.000, 2.000), (0.000, 2.000), (-1.000, 1.000),
+                 (0.000, 5.000), (0.000, 10.000), (0.080, 0.120), (1.4e5, 1.9e5),
+                 (0.140, 0.220), (5.0e4, 8.5e4), (0.005, 0.020), (100.0, 150.0),
+                 (0.010, 0.050), (100.0, 150.0), (5.000, 13.00), (10.00, 16.00),
+                 (0.080, 0.120), (1.4e5, 1.9e5), (0.140, 0.220), (4.0e4, 8.5e4),
+                 (0.020, 0.100), (80.00, 110.0), (0.080, 0.150), (80.00, 120.0),
+                 (5.000, 13.00), (10.00, 16.00))
+
+    mybounds = MyBounds(xmax=[i[1] for i in var_limit], xmin=[i[0] for i in var_limit])
+
+    min_result = optimize.basinhopping(tfunc, VAR, minimizer_kwargs={"method": "L-BFGS-B", "jac": "2-point", "options": dict(
+        maxiter=1000, disp=True, gtol=0.01)}, niter=10, callback=print_func, disp=True, accept_test=mybounds)
     #min_result = optimize.minimize(tfunc, VAR, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.0001))
     print(min_result)
-    
-    drawPicture(xyzs, eners, grads, min_result.x, template, state_templates=state_templates)
+
+    drawPicture(xyzs, eners, grads, min_result.x,
+                template, state_templates=state_templates)
