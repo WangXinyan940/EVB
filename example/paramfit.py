@@ -224,8 +224,10 @@ if __name__ == '__main__':
     tfunc = genTotalScore(xyzs, eners, grads, template, state_templates=state_templates)
     drawPicture(xyzs, eners, grads, VAR, template, state_templates=state_templates)
     def print_func(x, f, accepted):
+        print("Round finished.")
+        print(x)
         print("at minimum %.4f accepted %d"%(f, int(accepted)))
-    min_result = optimize.basinhopping(tfunc, VAR, minimizer_kwargs={"method":"L-BFGS-B", "jac":"2-point"}, niter=1, callback=print_func)
+    min_result = optimize.basinhopping(tfunc, VAR, minimizer_kwargs={"method":"L-BFGS-B", "jac":"2-point","options":dict(maxiter=1000, disp=True, gtol=0.01)}, niter=10, callback=print_func, disp=True)
     #min_result = optimize.minimize(tfunc, VAR, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.0001))
     print(min_result)
     
