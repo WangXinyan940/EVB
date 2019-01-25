@@ -25,12 +25,12 @@
   </Residue>
  </Residues>
  <AmoebaBondForce bond-cubic="-25.5" bond-quartic="379.3125">
-  <Bond class1="401" class2="403" length="0.10748649988701296" k="167845.344"/>
-  <Bond class1="401" class2="402" length="0.18136990140164522" k="77152.96000000047"/>
+  <Bond class1="401" class2="403" length="{{ var[6] }}" k="{{ var[7] }}"/>
+  <Bond class1="401" class2="402" length="{{ var[8] }}" k="{{ var[9] }}"/>
  </AmoebaBondForce>
  <AmoebaAngleForce angle-cubic="-0.014" angle-quartic="5.6e-05" angle-pentic="-7e-07" angle-sextic="2.2e-08">
-  <Angle class1="403" class2="401" class3="403" k="0.010050944932713735" angle1="115.70514476489242"  /> 
-  <Angle class1="403" class2="401" class3="402" k="0.02827920318000138" angle1="112.28089953194316"  /> 
+  <Angle class1="403" class2="401" class3="403" k="{{ var[10] }}" angle1="{{ var[11] }}"  /> 
+  <Angle class1="403" class2="401" class3="402" k="{{ var[12] }}" angle1="{{ var[13] }}"  /> 
  </AmoebaAngleForce>
  <AmoebaOutOfPlaneBendForce type="ALLINGER" opbend-cubic="-0.014" opbend-quartic="5.6e-05" opbend-pentic="-7e-07" opbend-sextic="2.2e-08">
  </AmoebaOutOfPlaneBendForce>
@@ -39,7 +39,7 @@
  <AmoebaPiTorsionForce piTorsionUnit="1.0">
  </AmoebaPiTorsionForce>
  <AmoebaStretchBendForce stretchBendUnit="1.0">
-  <StretchBend class1="402" class2="401" class3="403" k1="8.359834574834606" k2="13.644005340089409" />
+  <StretchBend class1="402" class2="401" class3="403" k1="{{ var[14] }}" k2="{{ var[15] }}" />
 </AmoebaStretchBendForce>
  <AmoebaTorsionTorsionForce >
 </AmoebaTorsionTorsionForce>
