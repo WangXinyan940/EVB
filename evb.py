@@ -126,8 +126,11 @@ class EVBHamiltonian(object):
                                      polarization='mutual', mutualInducedTargetEpsilon=0.00001, removeCMMotion=False)
             integrator = mm.LangevinIntegrator(
                 195 * unit.kelvin, 1 / unit.picosecond, 0.0005 * unit.picoseconds)
-            simulation = app.Simulation(pdb.topology, system, integrator)
-            self.diag.append(simulation.context)
+            if "platform" in conf:
+                context = mm.Context(system, integrator, mm.Platform.getPlatformByName(conf["platform"].upper()))
+            else:
+                context = mm.Context(system, integrator)
+            self.diag.append(context)
         for offd in conf["off_diag"]:
             self.off_diag.append(offd)
         self.emat = np.zeros((len(self.diag), len(self.diag)))
