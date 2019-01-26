@@ -9,6 +9,7 @@ from jinja2 import Template
 sys.path.append("..")
 import evb
 import matplotlib.pyplot as plt
+from tempfile import TemporaryDirectory
 
 QMDATA = "qm/"
 TEMPFILE = "conf.temp"
@@ -20,6 +21,9 @@ VAR = np.array([-35.000,  0.5870,  0.5664, -0.0232886395,
                 0.1076,  162364.304,  0.1900658,  59835.384,
                 0.0624,  94.8828612,  0.1157697,  99.824709,
                 8.4451,  13.6449845])
+
+
+TEMPDIR = TemporaryDirectory()
 
 
 def findline(text, parser):
@@ -127,43 +131,50 @@ def genTotalScore(xyzs, eners, grads, template, state_templates=[]):
         Return score::float
         """
         # gen state files
-        for name, temp in state_templates:
-            with open("%s.xml" % name, "w") as f:
-                f.write(temp.render(var=np.abs(var)))
-        # gen config file
-        conf = json.loads(template.render(var=var))
-        # gen halmitonian
-        H = evb.EVBHamiltonian(conf)
-        # calc forces
-        calc_ener, calc_grad = [], []
-        for n, xyz in enumerate(xyzs):
-            energy, gradient = H.calcEnergyGrad(xyz)
-            calc_ener.append(energy)
-            calc_grad.append(gradient)
-        # compare
-        calc_ener = np.array(
-            [i.value_in_unit(unit.kilojoule / unit.mole) for i in calc_ener])
-        ref_ener = np.array(
-            [i.value_in_unit(unit.kilojoule / unit.mole) for i in eners])
-        var_ener = np.sqrt(
-            (np.abs((calc_ener - calc_ener.max()) - (ref_ener - ref_ener.max())) ** 2).sum())
+        try:
+            for name, temp in state_templates:
+                with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
+                    f.write(temp.render(var=np.abs(var)))
+            # gen config file
+            conf = json.loads(template.render(var=var))
+            for n,fn in enumerate(state_templates):
+                conf["diag"][n]["parameter"] = "%s/%s.xml"%(TEMPDIR.name, fn[0])
+            # gen halmitonian
+            H = evb.EVBHamiltonian(conf)
+            # calc forces
+            calc_ener, calc_grad = [], []
+            for n, xyz in enumerate(xyzs):
+                energy, gradient = H.calcEnergyGrad(xyz)
+                calc_ener.append(energy)
+                calc_grad.append(gradient)
+            # compare
+            calc_ener = np.array(
+                [i.value_in_unit(unit.kilojoule / unit.mole) for i in calc_ener])
+            ref_ener = np.array(
+                [i.value_in_unit(unit.kilojoule / unit.mole) for i in eners])
+            var_ener = np.sqrt(
+                (np.abs((calc_ener - calc_ener.max()) - (ref_ener - ref_ener.max())) ** 2).sum())
 
-        calc_grad = np.array([i.value_in_unit(
-            unit.kilojoule_per_mole / unit.angstrom) for i in calc_grad]).ravel()
-        ref_grad = np.array([i.value_in_unit(
-            unit.kilojoule_per_mole / unit.angstrom) for i in grads]).ravel()
-        var_grad = np.sqrt(((calc_grad - ref_grad) ** 2).mean())
-        return var_grad + var_ener
+            calc_grad = np.array([i.value_in_unit(
+                unit.kilojoule_per_mole / unit.angstrom) for i in calc_grad]).ravel()
+            ref_grad = np.array([i.value_in_unit(
+                unit.kilojoule_per_mole / unit.angstrom) for i in grads]).ravel()
+            var_grad = np.sqrt(((calc_grad - ref_grad) ** 2).mean())
+            return var_grad + var_ener
+        except:
+            return 10000.0
     return valid
 
 
 def drawPicture(xyzs, eners, grads, var, template, state_templates=[]):
 
     for name, temp in state_templates:
-        with open("%s.xml" % name, "w") as f:
+        with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
             f.write(temp.render(var=np.abs(var)))
 
     conf = json.loads(template.render(var=var))
+    for n,fn in enumerate(state_templates):
+        conf["diag"][n]["parameter"] = "%s/%s.xml"%(TEMPDIR.name, fn[0])
     H = evb.EVBHamiltonian(conf)
     calc_ener, calc_grad = [], []
     for n, xyz in enumerate(xyzs):
@@ -223,8 +234,8 @@ if __name__ == '__main__':
     gfunc = genGradScore(xyzs, grads, template)
     tfunc = genTotalScore(xyzs, eners, grads, template,
                           state_templates=state_templates)
-    drawPicture(xyzs, eners, grads, VAR, template,
-                state_templates=state_templates)
+#    drawPicture(xyzs, eners, grads, VAR, template,
+#                state_templates=state_templates)
 
     def print_func(x, f, accepted):
         print("Round finished.")
@@ -252,10 +263,11 @@ if __name__ == '__main__':
 
     mybounds = MyBounds(xmax=[i[1] for i in var_limit], xmin=[i[0] for i in var_limit])
 
-    min_result = optimize.basinhopping(tfunc, VAR, minimizer_kwargs={"method": "L-BFGS-B", "jac": "2-point", "options": dict(
-        maxiter=1000, disp=True, gtol=0.01)}, niter=10, callback=print_func, disp=True, accept_test=mybounds)
+    min_result = optimize.basinhopping(tfunc, VAR * (1 + (np.random.random(VAR.shape) - 0.5) * 2 * 0.5), minimizer_kwargs={"method": "L-BFGS-B", "jac": "2-point", "options": dict(
+        maxiter=1000, disp=True, gtol=0.1)}, niter=10, callback=print_func, disp=True, accept_test=mybounds)
     #min_result = optimize.minimize(tfunc, VAR, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.0001))
     print(min_result)
 
     drawPicture(xyzs, eners, grads, min_result.x,
                 template, state_templates=state_templates)
+    TEMPDIR.cleanup()
