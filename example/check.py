@@ -22,7 +22,6 @@ VAR = np.array([-8.82047150e+00,  4.38666042e-01,  2.39817401e-01, -8.46593935e-
                  2.84185939e-02,  8.40873651e+01,  6.95016903e-02,  9.84080912e+01,
                  1.13992471e+01,  7.67094349e+00])
 
-
 TEMPDIR = TemporaryDirectory()
 
 
@@ -213,43 +212,6 @@ def drawPicture(xyzs, eners, grads, var, template, state_templates=[]):
     plt.show()
 
 
-def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0):
-    newvar = np.zeros(var.shape)
-    newvar[:] = var[:] + (np.random.random(var.shape) * 2 - 1.0) * pert
-    posvar = np.zeros(var.shape)
-    posvar[:] = newvar[:]
-    posscore = np.inf
-    traj = [[score(var), var]]
-    for ni in range(niter):
-        print("\nRound %i. Start BFGS."%ni)
-        min_result = optimize.minimize(score, newvar, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.0001))
-        print("Result:")
-        print(min_result.x)
-        print("")
-        t_score = score(min_result.x)
-        if t_score < posscore or np.exp(- (t_score - posscore) / T) > np.random.random():
-            traj.append([t_score, min_result.x])
-            posvar[:] = min_result.x[:]
-            posscore = t_score
-            print("Accepted.")
-        else:
-            print("Rejected.")
-        while True:
-            newvar = posvar + (np.random.random(posvar.shape) * 2 - 1.0) * pert
-            if bounds(x_new=newvar):
-                break
-            else:
-                continue
-        print("Set new var:")
-        print(newvar)
-        print("")
-    sorttraj = sorted(traj, key=lambda x:x[0])
-    print("Job finished.")
-    print("Min f:", sorttraj[0])
-    print("Min var:", sorttraj[1])
-    return sorttraj 
-
-
 if __name__ == '__main__':
     fnames = os.listdir(QMDATA)
     xyzs, eners, grads = [], [], []
@@ -271,40 +233,8 @@ if __name__ == '__main__':
     gfunc = genGradScore(xyzs, grads, template)
     tfunc = genTotalScore(xyzs, eners, grads, template,
                           state_templates=state_templates)
-#    drawPicture(xyzs, eners, grads, VAR, template,
-#                state_templates=state_templates)
 
-    def print_func(x, f, accepted):
-        print("Round finished.")
-        print(x)
-        print("at minimum %.4f accepted %d" % (f, int(accepted)))
-
-    class MyBounds(object):
-        def __init__(self, xmax=[], xmin=[]):
-            self.xmax = np.array(xmax)
-            self.xmin = np.array(xmin)
-
-        def __call__(self, **kwargs):
-            x = kwargs["x_new"]
-            tmax = bool(np.all(x <= self.xmax))
-            tmin = bool(np.all(x >= self.xmin))
-            return tmax and tmin
-
-    var_limit = ((-4.5e1, 0.000), (0.000, 2.000), (0.000, 2.000), (-1.000, 1.000),
-                 (0.000, 5.000), (0.000, 10.000), (0.080, 0.120), (1.4e5, 1.9e5),
-                 (0.140, 0.220), (5.0e4, 8.5e4), (0.005, 0.020), (100.0, 150.0),
-                 (0.010, 0.050), (100.0, 150.0), (5.000, 13.00), (10.00, 16.00),
-                 (0.080, 0.120), (1.4e5, 1.9e5), (0.140, 0.220), (4.0e4, 8.5e4),
-                 (0.020, 0.100), (80.00, 110.0), (0.080, 0.150), (80.00, 120.0),
-                 (5.000, 13.00), (10.00, 16.00))
-
-    mybounds = MyBounds(xmax=[100.0 for i in var_limit], xmin=[-100.0 for i in var_limit])
-
-    traj = basinhopping(tfunc, np.zeros(VAR.shape), niter=50, bounds=mybounds, T=10.0, pert=25.0)
-    #min_result = optimize.minimize(tfunc, VAR, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.0001))
-
-    drawPicture(xyzs, eners, grads, traj[0][1],
+    print(tfunc(var))
+    drawPicture(xyzs, eners, grads, var,
                 template, state_templates=state_templates)
     TEMPDIR.cleanup()
-
-
