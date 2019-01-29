@@ -159,7 +159,8 @@ def genTotalScore(xyzs, eners, grads, template, state_templates=[]):
                 unit.kilojoule_per_mole / unit.angstrom) for i in calc_grad]).ravel()
             ref_grad = np.array([i.value_in_unit(
                 unit.kilojoule_per_mole / unit.angstrom) for i in grads]).ravel()
-            var_grad = np.sqrt(((calc_grad - ref_grad) ** 2).mean())
+
+            var_grad = np.sqrt((((calc_grad - ref_grad) / ref_grad) ** 2).mean())
             return var_grad + var_ener
         except:
             return 10000.0
@@ -222,7 +223,7 @@ def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0):
     traj = [[score(var), var]]
     for ni in range(niter):
         print("\nRound %i. Start BFGS."%ni)
-        min_result = optimize.minimize(score, newvar, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.0001))
+        min_result = optimize.minimize(score, newvar, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=500, disp=True, gtol=0.0001))
         print("Result:")
         print(min_result.x)
         print("")
@@ -300,7 +301,7 @@ if __name__ == '__main__':
 
     mybounds = MyBounds(xmax=[100.0 for i in var_limit], xmin=[-100.0 for i in var_limit])
 
-    traj = basinhopping(tfunc, np.zeros(VAR.shape), niter=50, bounds=mybounds, T=10.0, pert=25.0)
+    traj = basinhopping(tfunc, np.zeros(VAR.shape), niter=50, bounds=mybounds, T=2.0, pert=25.0)
     #min_result = optimize.minimize(tfunc, VAR, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.0001))
 
     drawPicture(xyzs, eners, grads, traj[0][1],
