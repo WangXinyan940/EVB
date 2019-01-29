@@ -225,7 +225,7 @@ def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0):
     for ni in range(niter):
         print("\nRound %i. Start BFGS." % ni)
         min_result = optimize.minimize(score, newvar, jac="2-point", hess="2-point",
-                                       method='L-BFGS-B', options=dict(maxiter=500, disp=True, gtol=0.0001))
+                                       method='L-BFGS-B', options=dict(maxiter=500, disp=True, gtol=0.01))
         print("Result:")
         print(min_result.x)
         print("")
