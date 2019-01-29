@@ -14,19 +14,22 @@ from tempfile import TemporaryDirectory
 QMDATA = "qm/"
 TEMPFILE = "conf.temp"
 STATE_TEMPFILE = ["state_1.temp", "state_2.temp"]
-VAR = np.array([-8.82047150e+00,  4.38666042e-01,  2.39817401e-01, -8.46593935e-03,
+VAR = np.array([-8.82047150e+00,  4.38666042e-01,  2.39817401e-01, 8.46593935e-03,
                 4.01405058e+00,  9.18157661e-01,  1.07899640e-01,  4.32995384e+04,
                 1.83148456e-01,  1.10367501e+05,  1.62516059e-02,  8.51126256e+01,
-                4.77436275e-02,  1.02434555e+02,  6.61435431e+00,  2.01263896e+00,
+                4.77436275e-02,  1.02434555e+02,  6.61435431e+00,  2.01263896e+00, 2.01263896e+00,
                 1.06777298e-01, -9.54761776e+03,  2.01137910e-01,  6.22241691e+04,
                 2.84185939e-02,  8.40873651e+01,  6.95016903e-02,  9.84080912e+01,
-                1.13992471e+01,  7.67094349e+00])
-var = np.array([15.48489305,  -79.15429111, -115.12019090,  -10.50153702,   40.78721255,
-                -35.21499204,   -2.32152649,  -95.94923276,    0.39324953,  -37.34920586,
-                37.47536904,   33.49287422,  -96.97299968,    4.41615202,  -96.33407227,
-                -8.02174585,    2.91184273,  -89.10485991,   -0.60008475,  -15.07726542,
-                -72.85021247,  -15.71198628,  -70.17065530,   -8.84030539,  -99.94546884,
-                -92.56532677])
+                1.13992471e+01,  7.67094349e+00,  2.01263896e+00])
+
+var = np.array([ 1.58426889e+01, -3.24567490e+01, -3.15881775e+01,  3.75988210e+01,
+  1.98389210e+01, -3.93109448e+01, -4.14876753e-02, -1.51170294e+01,
+  1.90032664e-01, -2.46003778e+01, -2.43502128e+01,  3.15740874e+01,
+ -6.24889685e+01,  3.09870718e+00, -2.05621358e+01, -1.17965579e+01,
+  3.48064761e+01,  6.17902776e+00, -1.37958287e-01, -1.07909156e+00,
+ -7.78078929e+00, -4.44864382e+01,  2.18746567e+00, -5.00271817e+01,
+ -4.21610042e+00, -9.99491677e+01, -7.67836073e+01,  2.30073812e+00,])
+
 
 TEMPDIR = TemporaryDirectory()
 
@@ -193,9 +196,9 @@ def drawPicture(xyzs, eners, grads, var, template, state_templates=[]):
     ref_ener = np.array(
         [i.value_in_unit(unit.kilojoule / unit.mole) for i in eners])
     ref_ener = ref_ener - ref_ener.max()
-    plt.plot([calc_ener.min(), calc_ener.max()], [
-             calc_ener.min(), calc_ener.max()], c='black')
-    plt.scatter(calc_ener, ref_ener, c="red")
+    plt.plot([calc_ener.min() / 4.184, calc_ener.max() / 4.184], [
+             calc_ener.min() / 4.184, calc_ener.max() / 4.184], c='black')
+    plt.scatter(calc_ener / 4.184, ref_ener / 4.184, c="red")
     plt.xlabel("CALC ENERGY")
     plt.ylabel("REF ENERGY")
     #plt.plot(calc_ener, c="red")
@@ -208,11 +211,11 @@ def drawPicture(xyzs, eners, grads, var, template, state_templates=[]):
         [i.value_in_unit(unit.kilojoule_per_mole / unit.angstrom) for i in calc_grad])
     ref_grad = np.array(
         [i.value_in_unit(unit.kilojoule_per_mole / unit.angstrom) for i in grads])
-    plt.plot([calc_grad.min(), calc_grad.max()],
-             [calc_grad.min(), calc_grad.max()])
+    plt.plot([calc_grad.min() / 4.184, calc_grad.max() / 4.184],
+             [calc_grad.min() / 4.184, calc_grad.max() / 4.184])
     for n in range(calc_grad.shape[1]):
-        plt.scatter(calc_grad[:, n, :].ravel(), ref_grad[
-                    :, n, :].ravel(), c=cmap[n], label="%s" % n)
+        plt.scatter(calc_grad[:, n, :].ravel() / 4.184, ref_grad[
+                    :, n, :].ravel() / 4.184, c=cmap[n], label="%s" % n)
     plt.legend()
     plt.xlabel("CALC GRADIENT")
     plt.ylabel("REF GRADIENT")
@@ -241,6 +244,7 @@ if __name__ == '__main__':
     tfunc = genTotalScore(xyzs, eners, grads, template,
                           state_templates=state_templates)
 
+    print(VAR * (1 + var / 100.0))
     print(tfunc(var))
     drawPicture(xyzs, eners, grads, var,
                 template, state_templates=state_templates)
