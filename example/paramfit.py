@@ -2,6 +2,7 @@ import sys
 import os
 import json
 import pdb
+import logging
 import numpy as np
 import simtk.unit as unit
 from scipy import optimize
@@ -23,6 +24,10 @@ VAR = np.array([-1.02178714e+01,  2.96289306e-01,  1.64063455e-01,  1.16490327e-
                  9.42591073e+01,  5.79449948e-03,  1.78091636e+00,  2.05894451e+00,])
 
 TEMPDIR = TemporaryDirectory()
+if len(sys.argv) == 1:
+    print("LOG file needed.\nExit.")
+    exit()
+logging.basicConfig(filename=sys.argv[1], level=logging.INFO)
 
 
 def findline(text, parser):
@@ -222,33 +227,28 @@ def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0):
     posscore = np.inf
     traj = [[score(var), var]]
     for ni in range(niter):
-        print("\nRound %i. Start BFGS." % ni)
+        logging.info("Round %i. Start BFGS." % ni)
         min_result = optimize.minimize(score, newvar, jac="2-point", hess="2-point",
-                                       method='L-BFGS-B', options=dict(maxiter=500, disp=True, gtol=0.1))
-        print("Result:")
-        print(min_result.x)
-        print("")
+                                       method='L-BFGS-B', options=dict(maxiter=100, disp=True, gtol=0.1, maxls=10))
+        logging.info("Result:  " + "  ".join("{}".format(_) for _ in min_result.x))
         t_score = score(min_result.x)
         if t_score < posscore or np.exp(- (t_score - posscore) / T) > np.random.random():
+            logging.info("OLD: %.4f  NEW: %.4f accept"%(posscore, t_score))
             traj.append([t_score, min_result.x])
             posvar[:] = min_result.x[:]
             posscore = t_score
-            print("Accepted.")
+
         else:
-            print("Rejected.")
+            logging.info("OLD: %.4f  NEW: %.4f reject"%(posscore, t_score))
         while True:
             newvar = posvar + (np.random.random(posvar.shape) * 2 - 1.0) * pert
-            if bounds(x_new=newvar):
+            if not bounds or bounds(x_new=newvar):
                 break
             else:
                 continue
-        print("Set new var:")
-        print(newvar)
-        print("")
+        logging.info("Set new var: " + "  ".join("{}".format(_) for _ in newvar))
     sorttraj = sorted(traj, key=lambda x: x[0])
-    print("Job finished.")
-    print("Min f:", sorttraj[0])
-    print("Min var:", sorttraj[1])
+    logging.info("Job finished. min f: {}  min var: {}".format(sorttraj[0][0], " ".join("{}".format(_) for _ in sorttraj[0][1])))
     return sorttraj
 
 
@@ -276,10 +276,6 @@ if __name__ == '__main__':
 #    drawPicture(xyzs, eners, grads, VAR, template,
 #                state_templates=state_templates)
 
-    def print_func(x, f, accepted):
-        print("Round finished.")
-        print(x)
-        print("at minimum %.4f accepted %d" % (f, int(accepted)))
 
     class MyBounds(object):
 
@@ -295,8 +291,7 @@ if __name__ == '__main__':
 
     mybounds = MyBounds(xmax=100 * VAR, xmin=- VAR)
 
-    traj = basinhopping(tfunc, VAR, niter=50,
-                        bounds=mybounds, T=2.0, pert=5.0)
+    traj = basinhopping(tfunc, VAR, niter=50, T=2.0, pert=2.5)
     #min_result = optimize.minimize(tfunc, VAR, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.0001))
 
     drawPicture(xyzs, eners, grads, traj[0][1],
