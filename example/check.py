@@ -15,12 +15,18 @@ QMDATA = "qm/"
 TEMPFILE = "conf.temp"
 STATE_TEMPFILE = ["state_1.temp", "state_2.temp"]
 VAR = np.array([-8.82047150e+00,  4.38666042e-01,  2.39817401e-01, -8.46593935e-03,
-                 4.01405058e+00,  9.18157661e-01,  1.07899640e-01,  4.32995384e+04,
-                 1.83148456e-01,  1.10367501e+05,  1.62516059e-02,  8.51126256e+01,
-                 4.77436275e-02,  1.02434555e+02,  6.61435431e+00,  2.01263896e+00,
-                 1.06777298e-01, -9.54761776e+03,  2.01137910e-01,  6.22241691e+04,
-                 2.84185939e-02,  8.40873651e+01,  6.95016903e-02,  9.84080912e+01,
-                 1.13992471e+01,  7.67094349e+00])
+                4.01405058e+00,  9.18157661e-01,  1.07899640e-01,  4.32995384e+04,
+                1.83148456e-01,  1.10367501e+05,  1.62516059e-02,  8.51126256e+01,
+                4.77436275e-02,  1.02434555e+02,  6.61435431e+00,  2.01263896e+00,
+                1.06777298e-01, -9.54761776e+03,  2.01137910e-01,  6.22241691e+04,
+                2.84185939e-02,  8.40873651e+01,  6.95016903e-02,  9.84080912e+01,
+                1.13992471e+01,  7.67094349e+00])
+var = np.array([15.48489305,  -79.15429111, -115.12019090,  -10.50153702,   40.78721255,
+                -35.21499204,   -2.32152649,  -95.94923276,    0.39324953,  -37.34920586,
+                37.47536904,   33.49287422,  -96.97299968,    4.41615202,  -96.33407227,
+                -8.02174585,    2.91184273,  -89.10485991,   -0.60008475,  -15.07726542,
+                -72.85021247,  -15.71198628,  -70.17065530,   -8.84030539,  -99.94546884,
+                -92.56532677])
 
 TEMPDIR = TemporaryDirectory()
 
@@ -136,8 +142,9 @@ def genTotalScore(xyzs, eners, grads, template, state_templates=[]):
                     f.write(temp.render(var=np.abs(VAR * (1 + var / 100.0))))
             # gen config file
             conf = json.loads(template.render(var=VAR * (1 + var / 100.0)))
-            for n,fn in enumerate(state_templates):
-                conf["diag"][n]["parameter"] = "%s/%s.xml"%(TEMPDIR.name, fn[0])
+            for n, fn in enumerate(state_templates):
+                conf["diag"][n][
+                    "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
             # gen halmitonian
             H = evb.EVBHamiltonian(conf)
             # calc forces
@@ -172,8 +179,8 @@ def drawPicture(xyzs, eners, grads, var, template, state_templates=[]):
             f.write(temp.render(var=np.abs(VAR * (1 + var / 100.0))))
 
     conf = json.loads(template.render(var=VAR * (1 + var / 100.0)))
-    for n,fn in enumerate(state_templates):
-        conf["diag"][n]["parameter"] = "%s/%s.xml"%(TEMPDIR.name, fn[0])
+    for n, fn in enumerate(state_templates):
+        conf["diag"][n]["parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
     H = evb.EVBHamiltonian(conf)
     calc_ener, calc_grad = [], []
     for n, xyz in enumerate(xyzs):
