@@ -15,12 +15,12 @@ QMDATA = "qm/"
 TEMPFILE = "conf.temp"
 STATE_TEMPFILE = ["state_1.temp", "state_2.temp"]
 VAR = np.array([-8.82047150e+00,  4.38666042e-01,  2.39817401e-01, -8.46593935e-03,
-                 4.01405058e+00,  9.18157661e-01,  1.07899640e-01,  4.32995384e+04,
-                 1.83148456e-01,  1.10367501e+05,  1.62516059e-02,  8.51126256e+01,
-                 4.77436275e-02,  1.02434555e+02,  6.61435431e+00,  2.01263896e+00,
-                 1.06777298e-01, -9.54761776e+03,  2.01137910e-01,  6.22241691e+04,
-                 2.84185939e-02,  8.40873651e+01,  6.95016903e-02,  9.84080912e+01,
-                 1.13992471e+01,  7.67094349e+00])
+                4.01405058e+00,  9.18157661e-01,  1.07899640e-01,  4.32995384e+04,
+                1.83148456e-01,  1.10367501e+05,  1.62516059e-02,  8.51126256e+01,
+                4.77436275e-02,  1.02434555e+02,  6.61435431e+00,  2.01263896e+00, 2.01263896e+00,
+                1.06777298e-01, -9.54761776e+03,  2.01137910e-01,  6.22241691e+04,
+                2.84185939e-02,  8.40873651e+01,  6.95016903e-02,  9.84080912e+01,
+                1.13992471e+01,  7.67094349e+00,  2.01263896e+00])
 
 
 TEMPDIR = TemporaryDirectory()
@@ -137,8 +137,9 @@ def genTotalScore(xyzs, eners, grads, template, state_templates=[]):
                     f.write(temp.render(var=np.abs(VAR * (1 + var / 100.0))))
             # gen config file
             conf = json.loads(template.render(var=VAR * (1 + var / 100.0)))
-            for n,fn in enumerate(state_templates):
-                conf["diag"][n]["parameter"] = "%s/%s.xml"%(TEMPDIR.name, fn[0])
+            for n, fn in enumerate(state_templates):
+                conf["diag"][n][
+                    "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
             # gen halmitonian
             H = evb.EVBHamiltonian(conf)
             # calc forces
@@ -160,7 +161,7 @@ def genTotalScore(xyzs, eners, grads, template, state_templates=[]):
             ref_grad = np.array([i.value_in_unit(
                 unit.kilojoule_per_mole / unit.angstrom) for i in grads]).ravel()
 
-            var_grad = np.sqrt((((calc_grad - ref_grad) / ref_grad) ** 2).mean())
+            var_grad = np.sqrt(((calc_grad - ref_grad) ** 2).mean())
             return var_grad + var_ener
         except:
             return 10000.0
@@ -174,8 +175,8 @@ def drawPicture(xyzs, eners, grads, var, template, state_templates=[]):
             f.write(temp.render(var=np.abs(VAR * (1 + var / 100.0))))
 
     conf = json.loads(template.render(var=VAR * (1 + var / 100.0)))
-    for n,fn in enumerate(state_templates):
-        conf["diag"][n]["parameter"] = "%s/%s.xml"%(TEMPDIR.name, fn[0])
+    for n, fn in enumerate(state_templates):
+        conf["diag"][n]["parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
     H = evb.EVBHamiltonian(conf)
     calc_ener, calc_grad = [], []
     for n, xyz in enumerate(xyzs):
@@ -222,8 +223,9 @@ def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0):
     posscore = np.inf
     traj = [[score(var), var]]
     for ni in range(niter):
-        print("\nRound %i. Start BFGS."%ni)
-        min_result = optimize.minimize(score, newvar, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=500, disp=True, gtol=0.0001))
+        print("\nRound %i. Start BFGS." % ni)
+        min_result = optimize.minimize(score, newvar, jac="2-point", hess="2-point",
+                                       method='L-BFGS-B', options=dict(maxiter=500, disp=True, gtol=0.0001))
         print("Result:")
         print(min_result.x)
         print("")
@@ -244,11 +246,11 @@ def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0):
         print("Set new var:")
         print(newvar)
         print("")
-    sorttraj = sorted(traj, key=lambda x:x[0])
+    sorttraj = sorted(traj, key=lambda x: x[0])
     print("Job finished.")
     print("Min f:", sorttraj[0])
     print("Min var:", sorttraj[1])
-    return sorttraj 
+    return sorttraj
 
 
 if __name__ == '__main__':
@@ -281,6 +283,7 @@ if __name__ == '__main__':
         print("at minimum %.4f accepted %d" % (f, int(accepted)))
 
     class MyBounds(object):
+
         def __init__(self, xmax=[], xmin=[]):
             self.xmax = np.array(xmax)
             self.xmin = np.array(xmin)
@@ -291,21 +294,12 @@ if __name__ == '__main__':
             tmin = bool(np.all(x >= self.xmin))
             return tmax and tmin
 
-    var_limit = ((-4.5e1, 0.000), (0.000, 2.000), (0.000, 2.000), (-1.000, 1.000),
-                 (0.000, 5.000), (0.000, 10.000), (0.080, 0.120), (1.4e5, 1.9e5),
-                 (0.140, 0.220), (5.0e4, 8.5e4), (0.005, 0.020), (100.0, 150.0),
-                 (0.010, 0.050), (100.0, 150.0), (5.000, 13.00), (10.00, 16.00),
-                 (0.080, 0.120), (1.4e5, 1.9e5), (0.140, 0.220), (4.0e4, 8.5e4),
-                 (0.020, 0.100), (80.00, 110.0), (0.080, 0.150), (80.00, 120.0),
-                 (5.000, 13.00), (10.00, 16.00))
+    mybounds = MyBounds(xmax=[100.0 for i in VAR], xmin=[-100.0 for i in VAR])
 
-    mybounds = MyBounds(xmax=[100.0 for i in var_limit], xmin=[-100.0 for i in var_limit])
-
-    traj = basinhopping(tfunc, np.zeros(VAR.shape), niter=50, bounds=mybounds, T=2.0, pert=25.0)
+    traj = basinhopping(tfunc, np.zeros(VAR.shape), niter=50,
+                        bounds=mybounds, T=2.0, pert=25.0)
     #min_result = optimize.minimize(tfunc, VAR, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.0001))
 
     drawPicture(xyzs, eners, grads, traj[0][1],
                 template, state_templates=state_templates)
     TEMPDIR.cleanup()
-
-
