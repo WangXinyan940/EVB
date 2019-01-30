@@ -25,6 +25,10 @@ VAR = np.array([-1.02178714e+01,  2.96289306e-01,  1.64063455e-01,  1.16490327e-
                 9.42591073e+01,  5.79449948e-03,  1.78091636e+00,  2.05894451e+00, ])
 
 TEMPDIR = TemporaryDirectory()
+if len(sys.argv) == 1:
+    print("LOG file needed.\nExit.")
+    exit()
+logging.basicConfig(filename=sys.argv[1], level=logging.INFO)
 
 
 def findline(text, parser):
