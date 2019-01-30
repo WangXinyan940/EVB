@@ -14,13 +14,13 @@ from tempfile import TemporaryDirectory
 QMDATA = "qm/"
 TEMPFILE = "conf.temp"
 STATE_TEMPFILE = ["state_1.temp", "state_2.temp"]
-VAR = np.array([-8.82047150e+00,  4.38666042e-01,  2.39817401e-01, 8.46593935e-03,
-                4.01405058e+00,  9.18157661e-01,  1.07899640e-01,  4.32995384e+04,
-                1.83148456e-01,  1.10367501e+05,  1.62516059e-02,  8.51126256e+01,
-                4.77436275e-02,  1.02434555e+02,  6.61435431e+00,  2.01263896e+00, 2.01263896e+00,
-                1.06777298e-01, -9.54761776e+03,  2.01137910e-01,  6.22241691e+04,
-                2.84185939e-02,  8.40873651e+01,  6.95016903e-02,  9.84080912e+01,
-                1.13992471e+01,  7.67094349e+00,  2.01263896e+00])
+VAR = np.array([-6.457428454719952, 11.322013887117633, -3.102850900246132, 0.09955092345810203,
+                -6.896181660007977, 2.0635627394368368, 3.8942164265663797, 36755.58895025612,
+                -7.679705400769527, 83209.55839643197, 1.3639416920888712, 117.64547571663184,
+                -1.2822632961541458, 106.6704379643974, 7.444835249934883, -2.4242364651414148,
+                 3.680612219880417, 0.1838423264006372, -9537.648720433981, 0.22649091440551683,
+                 57378.44028386577, -0.0033029558860510166, 21.813491712864778, -0.027380204572135948,
+                 112.1508095011575, 13.304617729450348, 2.1571174365925194, 33.238039899626955])
 
 var = np.array([ 1.58426889e+01, -3.24567490e+01, -3.15881775e+01,  3.75988210e+01,
   1.98389210e+01, -3.93109448e+01, -4.14876753e-02, -1.51170294e+01,
@@ -142,9 +142,9 @@ def genTotalScore(xyzs, eners, grads, template, state_templates=[]):
         try:
             for name, temp in state_templates:
                 with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
-                    f.write(temp.render(var=np.abs(VAR * (1 + var / 100.0))))
+                    f.write(temp.render(var=np.abs(VAR)))
             # gen config file
-            conf = json.loads(template.render(var=VAR * (1 + var / 100.0)))
+            conf = json.loads(template.render(var=VAR))
             for n, fn in enumerate(state_templates):
                 conf["diag"][n][
                     "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
@@ -179,9 +179,9 @@ def drawPicture(xyzs, eners, grads, var, template, state_templates=[]):
 
     for name, temp in state_templates:
         with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
-            f.write(temp.render(var=np.abs(VAR * (1 + var / 100.0))))
+            f.write(temp.render(var=np.abs(VAR)))
 
-    conf = json.loads(template.render(var=VAR * (1 + var / 100.0)))
+    conf = json.loads(template.render(var=VAR))
     for n, fn in enumerate(state_templates):
         conf["diag"][n]["parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
     H = evb.EVBHamiltonian(conf)
@@ -244,8 +244,7 @@ if __name__ == '__main__':
     tfunc = genTotalScore(xyzs, eners, grads, template,
                           state_templates=state_templates)
 
-    print(VAR * (1 + var / 100.0))
-    print(tfunc(var))
-    drawPicture(xyzs, eners, grads, var,
+    print(tfunc(VAR))
+    drawPicture(xyzs, eners, grads, VAR,
                 template, state_templates=state_templates)
     TEMPDIR.cleanup()

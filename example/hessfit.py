@@ -9,10 +9,11 @@ from scipy import optimize
 from jinja2 import Template
 sys.path.append("..")
 import evb
+import matplotlib
 import matplotlib.pyplot as plt
 from tempfile import TemporaryDirectory
 
-QMDATA = "qm/"
+HESSFILE = ["qm/ts.log"]
 TEMPFILE = "conf.temp"
 STATE_TEMPFILE = ["state_1.temp", "state_2.temp"]
 VAR = np.array([-1.02178714e+01,  2.96289306e-01,  1.64063455e-01,  1.16490327e-02,
@@ -45,6 +46,13 @@ def getGaussianHess(fname):
     with open(fname, "r") as f:
         text = f.readlines()
 
+    start = findline(text, "Input orientation")[0] + 5
+    end = findline(text, "Distance matrix (angstroms)")[0] - 1
+    data = text[start:end]
+    data = [i.strip().split() for i in data]
+    xyz = [[float(j) for j in i[-3:]] for i in data]
+    xyz = unit.Quantity(value=np.array(xyz), unit=unit.angstrom)
+
     start = findline(text, "The second derivative matrix")[0] + 1
     end = findline(text, "ITU=  0")[0]
     data = text[start:end]
@@ -69,16 +77,15 @@ def getGaussianHess(fname):
         for n, item in enumerate(line[1:]):
             if ref + n >= ntot:
                 break
-            print(ref + shift, ref + n)
             hess[ref + shift, ref + n] = float(item)
             hess[ref + n, ref + shift] = float(item)
         shift += 1
     hess = unit.Quantity(value=hess * 627.5, unit=unit.kilocalorie_per_mole / unit.bohr / unit.bohr)
 
-    return hess
+    return xyz, hess
 
 
-def genHessScore(xyz, hess, template, state_templates=[], dx=0.00001):
+def genHessScore(xyzs, hesses, template, state_templates=[], dx=0.00001):
     """
     Generate score func.
     """
@@ -87,18 +94,21 @@ def genHessScore(xyz, hess, template, state_templates=[], dx=0.00001):
         Return score::float
         """
         # gen state files
-        try:
-            for name, temp in state_templates:
-                with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
-                    f.write(temp.render(var=np.abs(var)))
-            # gen config file
-            conf = json.loads(template.render(var=var))
-            for n, fn in enumerate(state_templates):
-                conf["diag"][n][
-                    "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
-            # gen halmitonian
-            H = evb.EVBHamiltonian(conf)
-            # calc hess (unit in kJ / mol / A^2)
+
+        for name, temp in state_templates:
+            with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
+                f.write(temp.render(var=np.abs(var)))
+        # gen config file
+        conf = json.loads(template.render(var=var))
+        for n, fn in enumerate(state_templates):
+            conf["diag"][n][
+                "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
+        # gen halmitonian
+        H = evb.EVBHamiltonian(conf)
+        # calc hess (unit in kJ / mol / A^2)
+        n_hess, var_hess = 0., 0.
+        for nh, xyz in enumerate(xyzs):
+            ref_hess = hesses[nh]
             oxyz = xyz.value_in_unit(unit.angstrom).ravel()
             dxyz = np.eye(oxyz.shape[0])
             calc_hess = np.zeros(dxyz.shape)
@@ -110,12 +120,12 @@ def genHessScore(xyz, hess, template, state_templates=[], dx=0.00001):
                     value=(oxyz - dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
                 ten, tgn = H.calcEnergyGrad(txyz)
                 calc_hess[:, gi] = (
-                    tgp - tgn).value_in_unit(unit.kilojoule_per_mole / unit.angstrom) / 2.0 / dx
-            var_hess = np.sqrt(((calc_hess - ref_hess.value_in_unit(
-                unit.kilojoule_per_mole / unit.angstrom / unit.angstrom)) ** 2).mean())
-            return var_hess
-        except:
-            return 10000.0
+                    tgp - tgn).value_in_unit(unit.kilojoule_per_mole / unit.angstrom).ravel() / 2.0 / dx
+            var_hess += ((calc_hess - ref_hess.value_in_unit(
+                unit.kilojoule_per_mole / unit.angstrom / unit.angstrom)) ** 2).sum()
+            n_hess += calc_hess.shape[0] ** 2
+        return np.sqrt(var_hess / n_hess)
+
     return valid
 
 
@@ -203,13 +213,11 @@ def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0):
 
 
 if __name__ == '__main__':
-    fnames = os.listdir(QMDATA)
-    xyzs, eners, grads = [], [], []
-    for fname in fnames:
-        txyz, tener, tgrad = getGaussianEnergyGradient(QMDATA + fname)
+    xyzs, hesses = [], []
+    for fname in HESSFILE:
+        txyz, thess = getGaussianHess(fname)
         xyzs.append(txyz)
-        eners.append(tener)
-        grads.append(tgrad)
+        hesses.append(thess)
 
     with open(TEMPFILE, "r") as f:
         template = Template("".join(f))
@@ -219,16 +227,21 @@ if __name__ == '__main__':
         with open(fname, "r") as f:
             state_templates.append([fname.split(".")[0], Template("".join(f))])
 
-    efunc = genEnergyScore(xyzs, eners, template)
-    gfunc = genGradScore(xyzs, grads, template)
-    tfunc = genTotalScore(xyzs, eners, grads, template,
-                          state_templates=state_templates)
+    tfunc = genHessScore(xyzs, hesses, template, state_templates=state_templates)
 #    drawPicture(xyzs, eners, grads, VAR, template,
 #                state_templates=state_templates)
 
     traj = basinhopping(tfunc, VAR, niter=50, T=2.0, pert=2.5)
     #min_result = optimize.minimize(tfunc, VAR, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.0001))
 
+    QMDATA = "qm/"
+    fnames = os.listdir(QMDATA)
+    xyzs, eners, grads = [], [], []
+    for fname in fnames:
+        txyz, tener, tgrad = getGaussianEnergyGradient(QMDATA + fname)
+        xyzs.append(txyz)
+        eners.append(tener)
+        grads.append(tgrad)
     drawPicture(xyzs, eners, grads, traj[0][1],
                 template, state_templates=state_templates)
     TEMPDIR.cleanup()
