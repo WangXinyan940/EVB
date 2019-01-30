@@ -8,12 +8,12 @@ HESSFILE = "hess/ts.log"
 TEMPFILE = "conf.temp"
 STATE_TEMPFILE = ["state_1.temp", "state_2.temp"]
 VAR = np.array([-1.02178714e+01,  2.96289306e-01,  1.64063455e-01,  1.16490327e-02,
-                4.81039490e+00,  5.57221210e-01,  1.07854875e-01,  3.67539345e+04,
-                1.83496498e-01,  8.32166788e+04,  1.22943053e-02,  1.11986160e+02,
-                1.79091272e-02,  1.05608702e+02,  5.25430179e+00,  1.77521684e+00,
-                2.71316766e+00,  1.13375097e-01, -9.53444603e+03,  1.98967448e-01,
-                5.73826376e+04,  1.57761737e-02,  8.59267473e+01,  3.47319534e-02,
-                9.42591073e+01,  5.79449948e-03,  1.78091636e+00,  2.05894451e+00, ])
+                 4.81039490e+00,  5.57221210e-01,  1.07854875e-01,  3.67539345e+04,
+                 1.83496498e-01,  8.32166788e+04,  1.22943053e-02,  1.11986160e+02,
+                 1.79091272e-02,  1.05608702e+02,  5.25430179e+00,  1.77521684e+00,
+                 2.71316766e+00,  1.13375097e-01, -9.53444603e+03,  1.98967448e-01,
+                 5.73826376e+04,  1.57761737e-02,  8.59267473e+01,  3.47319534e-02,
+                 9.42591073e+01,  5.79449948e-03,  1.78091636e+00,  2.05894451e+00, ])
 
 
 def main():
@@ -40,7 +40,7 @@ def main():
                          state_templates=state_templates, a_diag=1.0, a_offdiag=10.00)
     tfunc = genEnerGradScore(xyzs, eners, grads, template,
                              state_templates=state_templates)
-    score = lambda x: hfunc(x) + tfunc(x)
+    score = lambda x: 0.1 * hfunc(x) + tfunc(x)
 
     drawEnergy(xyzs, eners, VAR, template, state_templates=state_templates)
     drawGradient(xyzs, grads, VAR, template, state_templates=state_templates)
