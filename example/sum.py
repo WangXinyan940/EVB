@@ -37,7 +37,7 @@ def main():
             state_templates.append([fname.split(".")[0], Template("".join(f))])
 
     hfunc = genHessScore(hxyz, hess, mass, template,
-                         state_templates=state_templates, a_diag=0.1, a_offdiag=10.00)
+                         state_templates=state_templates, a_diag=1.0, a_offdiag=10.00)
     tfunc = genEnerGradScore(xyzs, eners, grads, template,
                              state_templates=state_templates)
     score = lambda x: hfunc(x) + tfunc(x)
