@@ -171,7 +171,7 @@ def genEnerGradScore(xyzs, eners, grads, template, state_templates=[], a_ener = 
     return valid
 
 
-def genHessScore(xyz, hess, mass, template, state_templates=[], dx=0.00001, a_diag = 0.01, a_offdiag = 1.00):
+def genHessScore(xyz, hess, mass, template, state_templates=[], dx=0.00001, a_diag = 1.00, a_offdiag = 1.00):
     """
     Generate score func.
     """
@@ -220,8 +220,17 @@ def genHessScore(xyz, hess, mass, template, state_templates=[], dx=0.00001, a_di
         calc_theta = np.dot(mass_mat, np.dot(calc_hess, mass_mat))
         # change basis
         calc_theta_p = np.dot(qvI, np.dot(calc_theta, qv))
+
+        vib_qm, vib_mm = np.diag(theta_p), np.diag(calc_theta_p)
+        vib_qm = unit.Quantity(vib_qm, unit.kilocalorie_per_mole / unit.angstrom ** 2 / unit.amu)
+        vib_mm = unit.Quantity(vib_mm, unit.kilocalorie_per_mole / unit.angstrom ** 2 / unit.amu)
+        vib_qm = vib_qm.value_in_unit(unit.joule / unit.meter ** 2 / unit.kilogram)
+        vib_mm = vib_mm.value_in_unit(unit.joule / unit.meter ** 2 / unit.kilogram)
+        vib_qm = np.sqrt(np.abs(vib_qm)) / 2. / np.pi / 2.99792458e10 * np.sign(vib_qm)
+        vib_mm = np.sqrt(np.abs(vib_mm)) / 2. / np.pi / 2.99792458e10 * np.sign(vib_mm)
+
         var = (calc_theta_p - theta_p) ** 2
-        var_diag = np.diag(var).sum() / var.shape[0]
+        var_diag = ((vib_qm - vib_mm) ** 2).sum() / vib_mm.shape[0]
         var_offdiag = (var - np.diag(np.diag(var))).sum() / \
             (var.shape[0] ** 2 - var.shape[0])
         return a_diag * var_diag + a_offdiag * var_offdiag
