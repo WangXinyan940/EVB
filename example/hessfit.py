@@ -13,7 +13,7 @@ import matplotlib
 import matplotlib.pyplot as plt
 from tempfile import TemporaryDirectory
 
-HESSFILE = ["qm/ts.log"]
+HESSFILE = "hess/ts.log"
 TEMPFILE = "conf.temp"
 STATE_TEMPFILE = ["state_1.temp", "state_2.temp"]
 VAR = np.array([-1.02178714e+01,  2.96289306e-01,  1.64063455e-01,  1.16490327e-02,
@@ -80,15 +80,29 @@ def getGaussianHess(fname):
             hess[ref + shift, ref + n] = float(item)
             hess[ref + n, ref + shift] = float(item)
         shift += 1
-    hess = unit.Quantity(value=hess * 627.5, unit=unit.kilocalorie_per_mole / unit.bohr / unit.bohr)
+    hess = unit.Quantity(
+        value=hess * 627.5, unit=unit.kilocalorie_per_mole / unit.bohr / unit.bohr)
 
     return xyz, hess
 
 
-def genHessScore(xyzs, hesses, template, state_templates=[], dx=0.00001):
+def genHessScore(xyz, hess, mass, template, state_templates=[], dx=0.00001):
     """
     Generate score func.
     """
+    # mat decomp
+    mass_mat = []
+    for i in mass:
+        mass_mat.append(i)
+        mass_mat.append(i)
+        mass_mat.append(i)
+    mass_mat = np.diag(1. / np.sqrt(mass_mat))
+    hess_v = hess.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom ** 2)
+    theta = np.dot(mass_mat, np.dot(hess_v, mass_mat))
+    qe, qv = np.linalg.eig(theta)
+    qvI = np.linalg.inv(qv)
+    theta_p = np.dot(qvI, np.dot(theta, qv))
+
     def valid(var):
         """
         Return score::float
@@ -106,74 +120,74 @@ def genHessScore(xyzs, hesses, template, state_templates=[], dx=0.00001):
         # gen halmitonian
         H = evb.EVBHamiltonian(conf)
         # calc hess (unit in kJ / mol / A^2)
-        n_hess, var_hess = 0., 0.
-        for nh, xyz in enumerate(xyzs):
-            ref_hess = hesses[nh]
-            oxyz = xyz.value_in_unit(unit.angstrom).ravel()
-            dxyz = np.eye(oxyz.shape[0])
-            calc_hess = np.zeros(dxyz.shape)
-            for gi in range(dxyz.shape[0]):
-                txyz = unit.Quantity(
-                    value=(oxyz + dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
-                tep, tgp = H.calcEnergyGrad(txyz)
-                txyz = unit.Quantity(
-                    value=(oxyz - dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
-                ten, tgn = H.calcEnergyGrad(txyz)
-                calc_hess[:, gi] = (
-                    tgp - tgn).value_in_unit(unit.kilojoule_per_mole / unit.angstrom).ravel() / 2.0 / dx
-            var_hess += ((calc_hess - ref_hess.value_in_unit(
-                unit.kilojoule_per_mole / unit.angstrom / unit.angstrom)) ** 2).sum()
-            n_hess += calc_hess.shape[0] ** 2
-        return np.sqrt(var_hess / n_hess)
+        oxyz = xyz.value_in_unit(unit.angstrom).ravel()
+        dxyz = np.eye(oxyz.shape[0])
+        calc_hess = np.zeros(dxyz.shape)
+        for gi in range(dxyz.shape[0]):
+            txyz = unit.Quantity(
+                value=(oxyz + dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
+            tep, tgp = H.calcEnergyGrad(txyz)
+            txyz = unit.Quantity(
+                value=(oxyz - dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
+            ten, tgn = H.calcEnergyGrad(txyz)
+            calc_hess[:, gi] = (
+                tgp - tgn).value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel() / 2.0 / dx
+        calc_theta = np.dot(mass_mat, np.dot(calc_hess, mass_mat))
+        # change basis
+        calc_theta_p = np.dot(qvI, np.dot(calc_theta, qv))
+        var = (calc_theta_p - theta_p) ** 2
+        var_diag = np.diag(var).sum() / var.shape[0]
+        var_offdiag = (var - np.diag(np.diag(var))).sum() / \
+            (var.shape[0] ** 2 - var.shape[0])
+        return 0.001 * var_diag + var_offdiag
 
     return valid
 
 
-def drawPicture(xyzs, eners, grads, var, template, state_templates=[]):
+def drawHess(xyz, hess, mass, var, template, state_templates=[], dx=0.00001):
+    mass_mat = []
+    for i in mass:
+        mass_mat.append(i)
+        mass_mat.append(i)
+        mass_mat.append(i)
+    mass_mat = np.diag(1. / np.sqrt(mass_mat))
+    hess_v = hess.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom ** 2)
+    theta = np.dot(mass_mat, np.dot(hess_v, mass_mat))
+    qe, qv = np.linalg.eig(theta)
+    qvI = np.linalg.inv(qv)
+    theta_p = np.dot(qvI, np.dot(theta, qv))
 
     for name, temp in state_templates:
         with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
             f.write(temp.render(var=np.abs(var)))
-
+    # gen config file
     conf = json.loads(template.render(var=var))
     for n, fn in enumerate(state_templates):
-        conf["diag"][n]["parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
+        conf["diag"][n][
+            "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
+    # gen halmitonian
     H = evb.EVBHamiltonian(conf)
-    calc_ener, calc_grad = [], []
-    for n, xyz in enumerate(xyzs):
-        energy, gradient = H.calcEnergyGrad(xyz)
-        calc_ener.append(energy)
-        calc_grad.append(gradient)
-    calc_ener = np.array(
-        [i.value_in_unit(unit.kilojoule / unit.mole) for i in calc_ener])
-    calc_ener = calc_ener - calc_ener.max()
-    ref_ener = np.array(
-        [i.value_in_unit(unit.kilojoule / unit.mole) for i in eners])
-    ref_ener = ref_ener - ref_ener.max()
-    plt.plot([calc_ener.min(), calc_ener.max()], [
-             calc_ener.min(), calc_ener.max()], c='black')
-    plt.scatter(calc_ener, ref_ener, c="red")
-    plt.xlabel("CALC ENERGY")
-    plt.ylabel("REF ENERGY")
-    #plt.plot(calc_ener, c="red")
-    #plt.plot(ref_ener, c="black")
-    # plt.xlabel("Sample")
-    #plt.ylabel("Energy (kJ/mol)")
+    # calc hess (unit in kJ / mol / A^2)
+    oxyz = xyz.value_in_unit(unit.angstrom).ravel()
+    dxyz = np.eye(oxyz.shape[0])
+    calc_hess = np.zeros(dxyz.shape)
+    for gi in range(dxyz.shape[0]):
+        txyz = unit.Quantity(
+            value=(oxyz + dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
+        tep, tgp = H.calcEnergyGrad(txyz)
+        txyz = unit.Quantity(
+            value=(oxyz - dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
+        ten, tgn = H.calcEnergyGrad(txyz)
+        calc_hess[:, gi] = (
+            tgp - tgn).value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel() / 2.0 / dx
+    calc_theta = np.dot(mass_mat, np.dot(calc_hess, mass_mat))
+    # change basis
+    calc_theta_p = np.dot(qvI, np.dot(calc_theta, qv))
+    var = (calc_theta_p - theta_p) ** 2
+    f = plt.imshow(var)
+    plt.colorbar(f)
     plt.show()
-    cmap = ["k", "r", "y", "g", "b", "m"]
-    calc_grad = np.array(
-        [i.value_in_unit(unit.kilojoule_per_mole / unit.angstrom) for i in calc_grad])
-    ref_grad = np.array(
-        [i.value_in_unit(unit.kilojoule_per_mole / unit.angstrom) for i in grads])
-    plt.plot([calc_grad.min(), calc_grad.max()],
-             [calc_grad.min(), calc_grad.max()])
-    for n in range(calc_grad.shape[1]):
-        plt.scatter(calc_grad[:, n, :].ravel(), ref_grad[
-                    :, n, :].ravel(), c=cmap[n], label="%s" % n)
-    plt.legend()
-    plt.xlabel("CALC GRADIENT")
-    plt.ylabel("REF GRADIENT")
-    plt.show()
+
 
 
 def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0):
@@ -213,11 +227,8 @@ def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0):
 
 
 if __name__ == '__main__':
-    xyzs, hesses = [], []
-    for fname in HESSFILE:
-        txyz, thess = getGaussianHess(fname)
-        xyzs.append(txyz)
-        hesses.append(thess)
+    xyz, hess = getGaussianHess(HESSFILE)
+    mass = [12.011, 1.008, 1.008, 1.008, 35.453, 79.904]
 
     with open(TEMPFILE, "r") as f:
         template = Template("".join(f))
@@ -227,21 +238,13 @@ if __name__ == '__main__':
         with open(fname, "r") as f:
             state_templates.append([fname.split(".")[0], Template("".join(f))])
 
-    tfunc = genHessScore(xyzs, hesses, template, state_templates=state_templates)
+    tfunc = genHessScore(xyz, hess, mass, template, state_templates=state_templates)
 #    drawPicture(xyzs, eners, grads, VAR, template,
 #                state_templates=state_templates)
-
-    traj = basinhopping(tfunc, VAR, niter=50, T=2.0, pert=2.5)
-    #min_result = optimize.minimize(tfunc, VAR, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.0001))
-
-    QMDATA = "qm/"
-    fnames = os.listdir(QMDATA)
-    xyzs, eners, grads = [], [], []
-    for fname in fnames:
-        txyz, tener, tgrad = getGaussianEnergyGradient(QMDATA + fname)
-        xyzs.append(txyz)
-        eners.append(tener)
-        grads.append(tgrad)
-    drawPicture(xyzs, eners, grads, traj[0][1],
-                template, state_templates=state_templates)
+    drawHess(xyz, hess, mass, VAR, template, state_templates=state_templates)
+    #traj = basinhopping(tfunc, VAR, niter=50, T=2.0, pert=2.5)
+    min_result = optimize.minimize(tfunc, VAR, jac="2-point", hess="2-point", method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.01))
+    print(min_result.x)
+    drawHess(xyz, hess, mass, min_result.x, template, state_templates=state_templates)
+    
     TEMPDIR.cleanup()
