@@ -230,7 +230,7 @@ def genHessScore(xyz, hess, mass, template, state_templates=[], dx=0.00001, a_di
         vib_mm = np.sqrt(np.abs(vib_mm)) / 2. / np.pi / 2.99792458e10 * np.sign(vib_mm)
 
         var = (calc_theta_p - theta_p) ** 2
-        var_diag = ((vib_qm - vib_mm) ** 2).sum() / vib_mm.shape[0]
+        var_diag = (((vib_qm - vib_mm) / vib_qm) ** 2).sum() / vib_mm.shape[0]
         var_offdiag = (var - np.diag(np.diag(var))).sum() / \
             (var.shape[0] ** 2 - var.shape[0])
         return a_diag * var_diag + a_offdiag * var_offdiag
@@ -370,7 +370,7 @@ def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0):
     for ni in range(niter):
         logging.info("Round %i. Start BFGS." % ni)
         min_result = optimize.minimize(score, newvar, jac="2-point", hess="2-point",
-                                       method='L-BFGS-B', options=dict(maxiter=100, disp=True, gtol=0.1, maxls=10))
+                                       method='L-BFGS-B', options=dict(maxiter=200, disp=True, gtol=0.1, maxls=10))
         logging.info("Result:  " + "  ".join("{}".format(_)
                                              for _ in min_result.x))
         t_score = score(min_result.x)
