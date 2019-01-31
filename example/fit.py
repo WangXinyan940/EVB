@@ -8,6 +8,8 @@ from jinja2 import Template
 sys.path.append("..")
 import evb
 import matplotlib.pyplot as plt
+from sklearn.gaussian_process import GaussianProcessRegressor
+from sklearn.gaussian_process.kernels import Matern
 from tempfile import TemporaryDirectory
 TEMPDIR = TemporaryDirectory()
 
@@ -121,11 +123,12 @@ def genEnergyScore(xyzs, ener, template, state_templates=[]):
             [i.value_in_unit(unit.kilojoule / unit.mole) for i in calc_ener])
         ref_ener = np.array(
             [i.value_in_unit(unit.kilojoule / unit.mole) for i in ener])
+        del H
         return np.sqrt((np.abs((calc_ener - calc_ener.max()) - (ref_ener - ref_ener.max())) ** 2).mean())
     return valid
 
 
-def genEnerGradScore(xyzs, eners, grads, template, state_templates=[], a_ener = 1.00, a_grad = 1.00):
+def genEnerGradScore(xyzs, eners, grads, template, state_templates=[], a_ener=1.00, a_grad=1.00):
     """
     Generate score func.
     """
@@ -165,13 +168,14 @@ def genEnerGradScore(xyzs, eners, grads, template, state_templates=[], a_ener = 
                 unit.kilojoule_per_mole / unit.angstrom) for i in grads]).ravel()
 
             var_grad = np.sqrt(((calc_grad - ref_grad) ** 2).mean())
+            del H
             return a_grad * var_grad + a_ener * var_ener
         except:
             return 10000.0
     return valid
 
 
-def genHessScore(xyz, hess, mass, template, state_templates=[], dx=0.00001, a_diag = 1.00, a_offdiag = 1.00):
+def genHessScore(xyz, hess, mass, template, state_templates=[], dx=0.00001, a_diag=1.00, a_offdiag=1.00):
     """
     Generate score func.
     """
@@ -222,17 +226,24 @@ def genHessScore(xyz, hess, mass, template, state_templates=[], dx=0.00001, a_di
         calc_theta_p = np.dot(qvI, np.dot(calc_theta, qv))
 
         vib_qm, vib_mm = np.diag(theta_p), np.diag(calc_theta_p)
-        vib_qm = unit.Quantity(vib_qm, unit.kilocalorie_per_mole / unit.angstrom ** 2 / unit.amu)
-        vib_mm = unit.Quantity(vib_mm, unit.kilocalorie_per_mole / unit.angstrom ** 2 / unit.amu)
-        vib_qm = vib_qm.value_in_unit(unit.joule / unit.meter ** 2 / unit.kilogram)
-        vib_mm = vib_mm.value_in_unit(unit.joule / unit.meter ** 2 / unit.kilogram)
-        vib_qm = np.sqrt(np.abs(vib_qm)) / 2. / np.pi / 2.99792458e10 * np.sign(vib_qm)
-        vib_mm = np.sqrt(np.abs(vib_mm)) / 2. / np.pi / 2.99792458e10 * np.sign(vib_mm)
+        vib_qm = unit.Quantity(
+            vib_qm, unit.kilocalorie_per_mole / unit.angstrom ** 2 / unit.amu)
+        vib_mm = unit.Quantity(
+            vib_mm, unit.kilocalorie_per_mole / unit.angstrom ** 2 / unit.amu)
+        vib_qm = vib_qm.value_in_unit(
+            unit.joule / unit.meter ** 2 / unit.kilogram)
+        vib_mm = vib_mm.value_in_unit(
+            unit.joule / unit.meter ** 2 / unit.kilogram)
+        vib_qm = np.sqrt(np.abs(vib_qm)) / 2. / np.pi / \
+            2.99792458e10 * np.sign(vib_qm)
+        vib_mm = np.sqrt(np.abs(vib_mm)) / 2. / np.pi / \
+            2.99792458e10 * np.sign(vib_mm)
 
         var = (calc_theta_p - theta_p) ** 2
         var_diag = (((vib_qm - vib_mm) / vib_qm) ** 2).sum() / vib_mm.shape[0]
         var_offdiag = (var - np.diag(np.diag(var))).sum() / \
             (var.shape[0] ** 2 - var.shape[0])
+        del H
         return a_diag * var_diag + a_offdiag * var_offdiag
 
     return valid
@@ -345,15 +356,19 @@ def drawHess(xyz, hess, mass, var, template, state_templates=[], dx=0.00001):
     plt.colorbar(f)
     plt.show()
     vib_qm, vib_mm = np.diag(theta_p), np.diag(calc_theta_p)
-    vib_qm = unit.Quantity(vib_qm, unit.kilocalorie_per_mole / unit.angstrom ** 2 / unit.amu)
-    vib_mm = unit.Quantity(vib_mm, unit.kilocalorie_per_mole / unit.angstrom ** 2 / unit.amu)
+    vib_qm = unit.Quantity(
+        vib_qm, unit.kilocalorie_per_mole / unit.angstrom ** 2 / unit.amu)
+    vib_mm = unit.Quantity(
+        vib_mm, unit.kilocalorie_per_mole / unit.angstrom ** 2 / unit.amu)
     vib_qm = vib_qm.value_in_unit(unit.joule / unit.meter ** 2 / unit.kilogram)
     vib_mm = vib_mm.value_in_unit(unit.joule / unit.meter ** 2 / unit.kilogram)
-    vib_qm = np.sqrt(np.abs(vib_qm)) / 2. / np.pi / 2.99792458e10 * np.sign(vib_qm)
-    vib_mm = np.sqrt(np.abs(vib_mm)) / 2. / np.pi / 2.99792458e10 * np.sign(vib_mm)
+    vib_qm = np.sqrt(np.abs(vib_qm)) / 2. / np.pi / \
+        2.99792458e10 * np.sign(vib_qm)
+    vib_mm = np.sqrt(np.abs(vib_mm)) / 2. / np.pi / \
+        2.99792458e10 * np.sign(vib_mm)
     plt.scatter(vib_qm, vib_mm)
-    vmin = min([vib_qm.min(),vib_mm.min()])
-    vmax = max([vib_qm.max(),vib_mm.max()])
+    vmin = min([vib_qm.min(), vib_mm.min()])
+    vmax = max([vib_qm.max(), vib_mm.max()])
     plt.plot([vmin, vmax], [vmin, vmax], c="black", ls="--")
     plt.xlabel("QM Freq")
     plt.ylabel("FF Freq")
@@ -396,3 +411,53 @@ def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0):
     return sorttraj
 
 
+def bayesianoptimizing(score, bounds, niter, nstart=20, kappa=1.5, gpr_sample=100000, return_traj=False, init_value=[]):
+    # start
+    bounds = np.array(bounds)
+    assert (bounds[:, 1] > bounds[:, 0]).all()
+    traj = []
+    for vi in init_value:
+        traj.append([vi, score(vi)])
+    for _ in range(nstart):
+        ti = np.random.random(
+            bounds.shape[0]) * (bounds[:, 1] - bounds[:, 0]) + bounds[:, 0]
+        traj.append([ti, score(ti)])
+    gp = GaussianProcessRegressor(
+        kernel=Matern(nu=2.5), n_restarts_optimizer=25)
+    train_features = np.array([i[0] for i in traj])
+    train_score = np.array([i[1] for i in traj])
+    gp.fit(train_features, train_score)
+
+    x_tries = np.random.uniform(
+        bounds[:, 0], bounds[:, 1], size=(gpr_sample, bounds.shape[0]))
+    mean, std = gp.predict(x_tries, return_std=True)
+    acquisition_fucntion_values = mean - kappa * std
+    x_min = x_tries[acquisition_fucntion_values.argmin()]
+
+    traj.append([x_min, score(x_min)])
+    global_val, global_min = sorted(traj, key=lambda x: x[1])[0]
+    logging.info("min f:{}  min var: [{}]".format(
+        global_min, ", ".join("{}".format(i) for i in global_val)))
+
+    for ni in range(niter):
+        print("Round", ni, "Score", global_min)
+        train_features = np.vstack((train_features, x_min.reshape((1, -1))))
+        train_score = np.append(train_score,score(x_min))
+        gp = GaussianProcessRegressor(
+            kernel=Matern(nu=2.5), n_restarts_optimizer=25)
+        gp.fit(train_features, train_score)
+
+        x_tries = np.random.uniform(
+            bounds[:, 0], bounds[:, 1], size=(gpr_sample, bounds.shape[0]))
+        mean, std = gp.predict(x_tries, return_std=True)
+        acquisition_fucntion_values = mean - kappa * std
+        x_min = x_tries[acquisition_fucntion_values.argmin()]
+
+        global_val, global_min = train_features[np.argmin(train_score),:], np.min(train_score)
+        logging.info("min f:{}  min var: [{}]".format(
+            global_min, ", ".join("{}".format(i) for i in global_val)))
+
+    if return_traj:
+        return global_val, global_min, traj
+    else:
+        return global_val, global_min
