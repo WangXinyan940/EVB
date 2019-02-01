@@ -375,7 +375,7 @@ def drawHess(xyz, hess, mass, var, template, state_templates=[], dx=0.00001):
     plt.show()
 
 
-def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0):
+def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0, inner_iter=200):
     newvar = np.zeros(var.shape)
     newvar[:] = var[:]
     posvar = np.zeros(var.shape)
@@ -385,7 +385,7 @@ def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0):
     for ni in range(niter):
         logging.info("Round %i. Start BFGS." % ni)
         min_result = optimize.minimize(score, newvar, jac="2-point", hess="2-point",
-                                       method='L-BFGS-B', options=dict(maxiter=200, disp=True, gtol=0.1, maxls=10))
+                                       method='L-BFGS-B', options=dict(maxiter=inner_iter, disp=True, gtol=0.1, maxls=10))
         logging.info("Result:  " + "  ".join("{}".format(_)
                                              for _ in min_result.x))
         t_score = score(min_result.x)
@@ -398,7 +398,7 @@ def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0):
         else:
             logging.info("OLD: %.4f  NEW: %.4f reject" % (posscore, t_score))
         while True:
-            newvar = posvar + (np.random.random(posvar.shape) * 2 - 1.0) * pert
+            newvar = posvar + (np.random.random(posvar.shape) * 2 - 1.0) * pert / 100.0 * posvar
             if not bounds or bounds(x_new=newvar):
                 break
             else:
@@ -411,16 +411,16 @@ def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0):
     return sorttraj
 
 
-def bayesianoptimizing(score, bounds, niter, nstart=20, kappa=1.5, gpr_sample=100000, return_traj=False, init_value=[]):
+def bayesianoptimizing(score, center, niter, nstart=20, sigma=1.0, norm=True, kappa=1.5, gpr_sample=100000, return_traj=False):
     # start
-    bounds = np.array(bounds)
-    assert (bounds[:, 1] > bounds[:, 0]).all()
+#    center = np.array(center)
+#    assert (center[:, 1] > center[:, 0]).all()
     traj = []
-    for vi in init_value:
-        traj.append([vi, score(vi)])
+#    for vi in init_value:
+#        traj.append([vi, score(vi)])
     for _ in range(nstart):
-        ti = np.random.random(
-            bounds.shape[0]) * (bounds[:, 1] - bounds[:, 0]) + bounds[:, 0]
+        #ti = np.random.random(bounds.shape[0]) * (bounds[:, 1] - bounds[:, 0]) + bounds[:, 0]
+        ti = np.random.normal(center, (sigma * np.abs(center)) if norm else sigma, size=center.shape)
         traj.append([ti, score(ti)])
     gp = GaussianProcessRegressor(
         kernel=Matern(nu=2.5), n_restarts_optimizer=25)
@@ -428,8 +428,8 @@ def bayesianoptimizing(score, bounds, niter, nstart=20, kappa=1.5, gpr_sample=10
     train_score = np.array([i[1] for i in traj])
     gp.fit(train_features, train_score)
 
-    x_tries = np.random.uniform(
-        bounds[:, 0], bounds[:, 1], size=(gpr_sample, bounds.shape[0]))
+    #x_tries = np.random.uniform(bounds[:, 0], bounds[:, 1], size=(gpr_sample, bounds.shape[0]))
+    x_tries = np.random.normal(center, (sigma * np.abs(center)) if norm else sigma, size=(gpr_sample, center.shape[0]))
     mean, std = gp.predict(x_tries, return_std=True)
     acquisition_fucntion_values = mean - kappa * std
     x_min = x_tries[acquisition_fucntion_values.argmin()]
@@ -447,11 +447,14 @@ def bayesianoptimizing(score, bounds, niter, nstart=20, kappa=1.5, gpr_sample=10
             kernel=Matern(nu=2.5), n_restarts_optimizer=25)
         gp.fit(train_features, train_score)
 
-        x_tries = np.random.uniform(
-            bounds[:, 0], bounds[:, 1], size=(gpr_sample, bounds.shape[0]))
-        mean, std = gp.predict(x_tries, return_std=True)
-        acquisition_fucntion_values = mean - kappa * std
-        x_min = x_tries[acquisition_fucntion_values.argmin()]
+        #x_tries = np.random.uniform(bounds[:, 0], bounds[:, 1], size=(gpr_sample, bounds.shape[0]))
+        while True:
+            x_tries = np.random.normal(center, (sigma * np.abs(center)) if norm else sigma, size=(gpr_sample, center.shape[0]))
+            mean, std = gp.predict(x_tries, return_std=True)
+            acquisition_fucntion_values = mean - kappa * std
+            if acquisition_fucntion_values.min() < global_min:
+                x_min = x_tries[acquisition_fucntion_values.argmin()]
+                break
 
         global_val, global_min = train_features[np.argmin(train_score),:], np.min(train_score)
         logging.info("min f:{}  min var: [{}]".format(

@@ -7,21 +7,14 @@ QMDATA = "qm/"
 HESSFILE = "hess/ts.log"
 TEMPFILE = "conf.temp"
 STATE_TEMPFILE = ["state_1.temp", "state_2.temp"]
-VAR = np.array([ 0.00000000e+00, -1.02178714e+01,  2.96289306e-01,  1.64063455e-01,  
-                 1.16490327e-02,  4.81039490e+00,  5.57221210e-01,  1.08700000e-01,
-                 1.67845344e+05,  1.77920000e-01,  7.71529600e+04,  3.81845978e-02,
-                 1.15710000e+02,  5.63082620e-02,  1.12320000e+02,  8.39782623e+00, 
-                 13.655595693963415, 0.10900000000000001, 162364.304, 0.19563, 
-                 59835.3840, 0.09128107114810141, 94.99, 0.14908052069524466, 
-                 100.33, 8.397826228907983, 13.655595693963415])
-
-BOUND = ((-5.0e+02, 5.0e+02), (-5.0e+02, 5.0e+02), (-1.0e+01, 1.0e+01), (-1.0e+01, 1.0e+01), 
-         (-1.0e+01, 1.0e+01), (-5.0e+01, 5.0e+01), ( 0.0e+00, 1.0e+01), ( 9.0e-01, 1.1e-01), 
-         ( 1.2e+05, 2.0e+05), ( 1.5e-01, 2.0e-01), ( 2.0e+04, 1.0e+05), ( 0.0e+00, 1.0e+00), 
-         ( 1.0e+02, 1.5e+02), ( 5.0e-02, 6.5e-02), ( 9.0e+01, 1.7e+02), ( 6.0e+00, 1.5e+01), 
-         ( 6.0e+00, 1.5e+01), ( 9.0e-01, 1.2e-01), ( 1.2e+05, 2.0e+05), ( 1.5e-01, 2.0e-01),
-         ( 3.0e+04, 9.0e+04), ( 0.0e+00, 1.0e+00), ( 7.0e+01, 1.1e+02), ( 1.0e-01, 2.0e-01), 
-         ( 9.0e+01, 1.2e+02), ( 6.0e+00, 1.5e+01), ( 6.0e+00, 1.5e+01))
+VAR = np.array([ 9.01746177e-00, -1.02177314e+01,  3.27273398e-01,  1.87726494e-01,
+                -7.57667288e-04,  4.82145772e+00,  5.76181083e-01,  1.06418266e-01,
+                 1.67845344e+05,  1.83136518e-01,  7.71529600e+04, -2.37615102e-10,
+                 1.15709687e+02,  2.45093702e-02,  1.12320315e+02,  8.39795056e+00,
+                 1.36556712e+01,  1.06408057e-01,  1.62364304e+05,  1.97054913e-01,
+                 5.98353844e+04,  4.15599127e-02,  9.49902495e+01,  8.24973847e-02,
+                 1.00329125e+02,  8.39794694e+00,  1.36556918e+01,  5.00000000e+00,
+                 5.00000000e+00])
 
 
 def main():
@@ -48,21 +41,42 @@ def main():
                          state_templates=state_templates, a_diag=1.0, a_offdiag=1.00)
     tfunc = genEnerGradScore(xyzs, eners, grads, template,
                              state_templates=state_templates)
-    score = lambda x: hfunc(x) + tfunc(x)
+    score = lambda x: 0.6 * hfunc(x) + tfunc(x)
 
     drawEnergy(xyzs, eners, VAR, template, state_templates=state_templates)
     drawGradient(xyzs, grads, VAR, template, state_templates=state_templates)
     drawHess(hxyz, hess, mass, VAR, template, state_templates=state_templates)
-    min_result = optimize.minimize(score, VAR, jac="2-point", hess="2-point",
-                                   method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.01))
-    print(min_result.x)
-    drawEnergy(xyzs, eners, min_result.x, template,
+#    min_result = optimize.minimize(score, VAR, jac="2-point", hess="2-point",
+#                                   method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.01))
+#    print(min_result.x)
+#    drawEnergy(xyzs, eners, min_result.x, template,
+#               state_templates=state_templates)
+#    drawGradient(xyzs, grads, min_result.x, template,
+#                 state_templates=state_templates)
+#    drawHess(hxyz, hess, mass, min_result.x, template,
+#             state_templates=state_templates)
+    traj = basinhopping(score, VAR, niter=50, bounds=None, T=1.0, pert=25.0, inner_iter=1000)
+    print(traj[0][1])
+    drawEnergy(xyzs, eners, traj[0][1], template,
                state_templates=state_templates)
-    drawGradient(xyzs, grads, min_result.x, template,
+    drawGradient(xyzs, grads, traj[0][1], template,
                  state_templates=state_templates)
-    drawHess(hxyz, hess, mass, min_result.x, template,
+    drawHess(hxyz, hess, mass, traj[0][1], template,
              state_templates=state_templates)
 
 
 if __name__ == '__main__':
+    logger = logging.getLogger() 
+    logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s: - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S')
+    fh = logging.FileHandler(sys.argv[1])
+    fh.setLevel(logging.DEBUG)
+    fh.setFormatter(formatter)
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    ch.setFormatter(formatter)
+    logger.addHandler(ch)
+    logger.addHandler(fh)
     main()

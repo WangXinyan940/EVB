@@ -74,7 +74,7 @@ def main():
     #drawGradient(xyzs, grads, VAR, template, state_templates=state_templates)
     #drawHess(hxyz, hess, mass, VAR, template, state_templates=state_templates)
 
-    best = bayesianoptimizing(score, BOUND, niter=1000, kappa=1.5, init_value=[VAR])
+    best = bayesianoptimizing(score, VAR, niter=1000, kappa=1.5, gpr_sample=100000)
     print(best)
 
     drawEnergy(xyzs, eners, best[0], template,
