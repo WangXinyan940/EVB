@@ -22,7 +22,7 @@ def findline(text, parser):
     return index
 
 
-def getGaussianEnergyGradient(fname):
+def getGaussEnergyGradient(fname):
     """
     Return xyz, gradient.
     """
@@ -51,51 +51,65 @@ def getGaussianEnergyGradient(fname):
     return xyz, energy, grad
 
 
-def getGaussianHess(fname):
+def readArray(parser, text):
+    start = findline(text, parser)[0]
+    num = int(text[start].strip().split()[-1])
+    array = np.zeros(num)
+    p = 0
+    for line in text[start+1:]:
+        if line.strip()[0].isalpha():
+            break
+        for i in line.strip().split():
+            array[p] = np.float64(i)
+            p += 1
+    return array
+
+
+def readHess(text):
+    natom = text[findline(text, "Number of atoms")[0]].strip().split()[-1]
+    natom = int(natom)
+    hess = readArray("Cartesian Force Constants", text)
+    hess_mat = np.zeros((natom*3, natom*3))
+    pn = 0
+    for pi in range(natom*3):
+        for pj in range(pi+1):
+            hess_mat[pi,pj] = hess[pn]
+            hess_mat[pj,pi] = hess[pn]
+            pn += 1
+    return unit.Quantity(hess_mat * 627.5, unit.kilocalorie_per_mole / unit.bohr / unit.bohr)
+
+
+def readMass(text):
+    return readArray("Real atomic weights", text)
+
+
+def readMmat(text):
+    mass = readMass(text)
+    M = np.zeros((3 * mass.shape[0],))
+    for i in range(mass.shape[0]):
+        M[3*i:3*(i+1)] = mass[i]
+    return unit.Quantity(M, unit.amu)
+
+
+def readXYZ(text):
+    return unit.Quantity(readArray("Current cartesian coordinates", text).reshape((-1,3)), unit.bohr)
+
+
+def getCHKHess(fname):
     """
-    Return xyz, gradient.
+    return xyz, hess
     """
     with open(fname, "r") as f:
         text = f.readlines()
+    xyz = readXYZ(text)
+    hess = readHess(text)
 
-    start = findline(text, "Input orientation")[0] + 5
-    end = findline(text, "Distance matrix (angstroms)")[0] - 1
-    data = text[start:end]
-    data = [i.strip().split() for i in data]
-    xyz = [[float(j) for j in i[-3:]] for i in data]
-    xyz = unit.Quantity(value=np.array(xyz), unit=unit.angstrom)
 
-    start = findline(text, "The second derivative matrix")[0] + 1
-    end = findline(text, "ITU=  0")[0]
-    data = text[start:end]
-    data = ["{:<72}".format(i) for i in data]
-    data = [[i[:21], i[21:31], i[31:41], i[41:51], i[51:61], i[61:71]]
-            for i in data]
-    data = [[j.strip() if j.strip() else "0.00" for j in i] for i in data]
-    ntot = 0
-    for line in data[1:]:
-        if line[1][0] not in "XYZ":
-            ntot += 1
-        else:
-            break
-    hess = np.zeros((ntot, ntot))
-    ref = 0
-    shift = 0
-    for line in data[1:]:
-        if line[1][0] in "XYZ":
-            ref += 5
-            shift = 0
-            continue
-        for n, item in enumerate(line[1:]):
-            if ref + n >= ntot:
-                break
-            hess[ref + shift, ref + n] = float(item)
-            hess[ref + n, ref + shift] = float(item)
-        shift += 1
-    hess = unit.Quantity(
-        value=hess * 627.5, unit=unit.kilocalorie_per_mole / unit.bohr / unit.bohr)
+def getCHKMass(fname):
+    with open(fname, "r") as f:
+        text = f.readlines()
+    return readMmat(text)
 
-    return xyz, hess
 
 
 def genEnergyScore(xyzs, ener, template, state_templates=[]):
