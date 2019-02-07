@@ -194,12 +194,7 @@ def genHessScore(xyz, hess, mass, template, state_templates=[], dx=0.00001, a_di
     Generate score func.
     """
     # mat decomp
-    mass_mat = []
-    for i in mass:
-        mass_mat.append(i)
-        mass_mat.append(i)
-        mass_mat.append(i)
-    mass_mat = np.diag(1. / np.sqrt(mass_mat))
+    mass_mat = np.diag(1. / np.sqrt(mass))
     hess_v = hess.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom ** 2)
     theta = np.dot(mass_mat, np.dot(hess_v, mass_mat))
     qe, qv = np.linalg.eig(theta)
