@@ -10,7 +10,8 @@ import simtk.unit as unit
 from scipy import optimize
 from jinja2 import Template
 import evb
-
+from gevent.coros import BoundedSemaphore
+sem = BoundedSemaphore(100)
 
 
 class EVBServer(object):
