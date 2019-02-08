@@ -404,7 +404,7 @@ def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0, inner_iter=
         else:
             logging.info("OLD: %.4f  NEW: %.4f reject" % (posscore, t_score))
         while True:
-            newvar = posvar + (np.random.random(posvar.shape) * 2 - 1.0) * pert / 100.0 * posvar
+            newvar = posvar + (np.random.random(posvar.shape) * 2 - 1.0) * pert
             if not bounds or bounds(x_new=newvar):
                 break
             else:
