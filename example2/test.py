@@ -8,7 +8,7 @@ VAR = np.array([ 1.00000000e+00,  1.00000000e+00,  1.00000000e+00,  0.00000000e+
                  0.00000000e+00,  0.00000000e+00,  0.00000000e+00,  0.00000000e+00,
                  0.00000000e+00,  0.00000000e+00,  0.00000000e+00,  0.00000000e+00,
                  0.00000000e+00,  0.00000000e+00,  0.00000000e+00])
-
+portlist = [5000, 5001, 5002, 5003]
 
 from fit import *
 HESSFILE = "freq.fchk"
@@ -29,9 +29,4 @@ with open(TEMPFILE, "r") as f:
 
 conf = json.loads(template.render(var=VAR))
 
-score = multifit.multigenEnerGradScore(xyzs, eners, grads, template, [5000, 5001, 5002, 5003])
-s = score(VAR)
-
-score2 = genEnerGradScore(xyzs, eners, grads, template)
-s2 = score2(VAR)
-print(s, s2)
+multifit.multidrawGradient(xyzs, grads, VAR, template, portlist)

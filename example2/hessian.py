@@ -41,7 +41,7 @@ def main():
 #                state_templates=state_templates)
 #    multidrawHess(xyz, hess, mass, VAR, template, portlist, state_templates=state_templates)
     #traj = basinhopping(tfunc, VAR, niter=50, T=2.0, pert=2.5)
-    min_result = optimize.minimize(tfunc, VAR, jac="2-point", hess="2-point",
+    min_result = optimize.minimize(gfunc, VAR, jac="2-point", hess="2-point",
                                    method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.01))
     print(min_result.x)
     multidrawHess(xyz, hess, mass, min_result.x, template, portlist,
