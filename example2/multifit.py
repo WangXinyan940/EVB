@@ -4,13 +4,12 @@ monkey.patch_socket()
 import json
 import logging
 import socket
-import asyncio
 import numpy as np
 import simtk.unit as unit
-from scipy import optimize
 from jinja2 import Template
 import evb
-
+from gevent.lock import BoundedSemaphore
+sem = BoundedSemaphore(50)
 
 
 class EVBServer(object):
@@ -22,11 +21,11 @@ class EVBServer(object):
         self.H = None
 
     def listen(self, max_link=500):
-        print("Listening port %i"%self._port)
+        logging.info("Listening port %i" % self._port)
         self.s.listen(max_link)
         while True:
             sock, addr = self.s.accept()
-            print("Server:", self._port, "  Client:",addr)
+            logging.info("Server:", self._port, "  Client:", addr)
             try:
                 buff = []
                 while True:
@@ -36,32 +35,34 @@ class EVBServer(object):
                         break
                 data = b"".join(buff).decode("utf-8")
                 if data[:4] == "INIT":
+                    logging.info("Initializing.")
                     conf = json.loads(data[4:])
                     self._initialize(conf)
                     sock.send("FINISH".encode("utf-8"))
+
+                elif self.H is None:
+                    logging.warn("Doing calculation before initialized.")
+                    sock.send("ERROR".encode("utf-8"))
+                    sock.close()
+                    continue
                 elif data[:4] == "ENER":
-                    if self.H == None:
-                        sock.send("ERROR".encode("utf-8"))
-                        sock.close()
-                        continue
+                    logging.info("Calculate energy.")
                     xyz = np.array([float(i) for i in data[4:].split()])
                     xyz = xyz.reshape((-1, 3))
                     ener = self._energy(xyz)
-                    sock.send(("%16.8f"%ener).encode("utf-8"))
+                    sock.send(("%16.8f" % ener).encode("utf-8"))
                 elif data[:4] == "GRAD":
-                    if self.H == None:
-                        sock.send("ERROR".encode("utf-8"))
-                        sock.close()
-                        continue
+                    logging.info("Calculate gradient.")
                     xyz = np.array([float(i) for i in data[4:].split()])
                     xyz = xyz.reshape((-1, 3))
                     ener, grad = self._gradient(xyz)
-                    grad = " ".join("%16.8f"%i for i in grad.ravel())
-                    sock.send(("%16.8f "%ener + grad).encode("utf-8"))
+                    grad = " ".join("%16.8f" % i for i in grad.ravel())
+                    sock.send(("%16.8f " % ener + grad).encode("utf-8"))
                 else:
+                    logging.warn("Unknown message. Did nothing.")
                     sock.send("ERROR".encode("utf-8"))
-            except:
-                print("SLASH")
+            except Exception as e:
+                logging.error("COLLAPSE:", str(e))
             finally:
                 sock.close()
 
@@ -82,8 +83,13 @@ class EVBServer(object):
 
 
 class EVBClient(object):
+    """
+    The client of EVBHalmitonian.
+    Have similar interfaces with evb.EVBHalmitonian.
+    Support coroutine.
+    """
 
-    def __init__(self, port_list = []):
+    def __init__(self, port_list=[]):
         self.port_list = port_list
         self.pi = 0
 
@@ -105,11 +111,11 @@ class EVBClient(object):
     def calcEnergy(self, xyz):
         xyz_no_unit = xyz.value_in_unit(unit.angstrom)
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        pt = self.port_list[self.pi%len(self.port_list)]
+        pt = self.port_list[self.pi % len(self.port_list)]
         self.pi += 1
         print(pt)
         s.connect(("127.0.0.1", pt))
-        data = "ENER" + " ".join("%16.8f"%i for i in xyz_no_unit.ravel())
+        data = "ENER" + " ".join("%16.8f" % i for i in xyz_no_unit.ravel())
         s.send(data.encode("utf-8"))
         ret = s.recv(1024).decode("utf-8")
         if ret == "ERROR":
@@ -123,7 +129,7 @@ class EVBClient(object):
         xyz_no_unit = xyz.value_in_unit(unit.angstrom)
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s.connect(("127.0.0.1", np.random.choice(self.port_list)))
-        data = "GRAD" + " ".join("%16.8f"%i for i in xyz_no_unit.ravel())
+        data = "GRAD" + " ".join("%16.8f" % i for i in xyz_no_unit.ravel())
         s.send(data.encode("utf-8"))
         buff = []
         while True:
@@ -138,7 +144,7 @@ class EVBClient(object):
             ans = 0
         s.close()
         ret = np.array([float(i) for i in ret.strip().split()])
-        return ans, unit.Quantity(ret[0], unit.kilojoule_per_mole), unit.Quantity(ret[1:].reshape((-1,3)), unit.kilojoule_per_mole / unit.angstrom)
+        return ans, unit.Quantity(ret[0], unit.kilojoule_per_mole), unit.Quantity(ret[1:].reshape((-1, 3)), unit.kilojoule_per_mole / unit.angstrom)
 
 
 def multigenHessScore(xyz, hess, mass, template, portlist, state_templates=[], dx=0.00001, a_diag=1.00, a_offdiag=1.00):
@@ -173,30 +179,21 @@ def multigenHessScore(xyz, hess, mass, template, portlist, state_templates=[], d
         oxyz = xyz.value_in_unit(unit.angstrom).ravel()
         dxyz = np.eye(oxyz.shape[0])
         calc_hess = np.zeros(dxyz.shape)
+
         def func(gi):
             txyz = unit.Quantity(
                 value=(oxyz + dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
             _, tep, tgp = client.calcEnergyGrad(txyz)
-            calc_hess[:, gi] = calc_hess[:, gi] + tgp.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
-        
-        #parallel
-#        for gi in range(dxyz.shape[0]):
-#            txyz = unit.Quantity(
-#                value=(oxyz + dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
-#            _, tep, tgp = client.calcEnergyGrad(txyz)
-#            calc_hess[:, gi] = calc_hess[:, gi] + tgp.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
-        #parallel
+            calc_hess[:, gi] = calc_hess[
+                :, gi] + tgp.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
+        # parallel
             txyz = unit.Quantity(
                 value=(oxyz - dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
             _, ten, tgn = client.calcEnergyGrad(txyz)
-            calc_hess[:, gi] = calc_hess[:, gi] - tgn.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
+            calc_hess[:, gi] = calc_hess[
+                :, gi] - tgn.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
         gevent.joinall([gevent.spawn(func, gi) for gi in range(dxyz.shape[0])])
-#        for gi in range(dxyz.shape[0]):
-#            txyz = unit.Quantity(
-#                value=(oxyz - dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
-#            _, ten, tgn = client.calcEnergyGrad(txyz)
-#            calc_hess[:, gi] = calc_hess[:, gi] - tgn.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
-            
+
         calc_hess = calc_hess / 2.0 / dx
         calc_theta = np.dot(mass_mat, np.dot(calc_hess, mass_mat))
         # change basis
