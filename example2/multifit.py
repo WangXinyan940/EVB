@@ -12,7 +12,6 @@ import matplotlib.pyplot as plt
 import evb
 
 
-
 class EVBServer(object):
 
     def __init__(self, port):
@@ -26,7 +25,8 @@ class EVBServer(object):
         self.s.listen(max_link)
         while True:
             sock, addr = self.s.accept()
-            logging.info("Server: %i  Client: %s:%i"%(self._port, addr[0], addr[1]))
+            logging.info("Server: %i  Client: %s:%i" %
+                         (self._port, addr[0], addr[1]))
             try:
                 buff = []
                 while True:
@@ -51,15 +51,15 @@ class EVBServer(object):
                     xyz = np.array([float(i) for i in data[4:].split()])
                     xyz = xyz.reshape((-1, 3))
                     ener = self._energy(xyz)
-                    sock.send(("%16.8f" % ener).encode("utf-8"))
+                    sock.send(("%18.10f" % ener).encode("utf-8"))
                     logging.info("Finish.")
                 elif data[:4] == "GRAD":
                     logging.info("Calculate gradient.")
                     xyz = np.array([float(i) for i in data[4:].split()])
                     xyz = xyz.reshape((-1, 3))
                     ener, grad = self._gradient(xyz)
-                    grad = " ".join("%16.8f" % i for i in grad.ravel())
-                    sock.send(("%16.8f " % ener + grad).encode("utf-8"))
+                    grad = " ".join("%18.10f" % i for i in grad.ravel())
+                    sock.send(("%18.10f " % ener + grad).encode("utf-8"))
                     logging.info("Finish.")
                 else:
                     logging.warn("Unknown message. Did nothing.")
@@ -117,7 +117,7 @@ class EVBClient(object):
         pt = self.port_list[self.pi % len(self.port_list)]
         self.pi += 1
         s.connect(("127.0.0.1", pt))
-        data = "ENER" + " ".join("%16.8f" % i for i in xyz_no_unit.ravel())
+        data = "ENER" + " ".join("%18.10f" % i for i in xyz_no_unit.ravel())
         s.send(data.encode("utf-8"))
         ret = s.recv(1024).decode("utf-8")
         if ret == "ERROR":
@@ -133,7 +133,7 @@ class EVBClient(object):
         pt = self.port_list[self.pi % len(self.port_list)]
         self.pi += 1
         s.connect(("127.0.0.1", pt))
-        data = "GRAD" + " ".join("%16.8f" % i for i in xyz_no_unit.ravel())
+        data = "GRAD" + " ".join("%18.10f" % i for i in xyz_no_unit.ravel())
         s.send(data.encode("utf-8"))
         buff = []
         while True:
@@ -188,22 +188,25 @@ def multigenHessScore(xyz, hess, mass, template, portlist, state_templates=[], d
             txyz = unit.Quantity(
                 value=(oxyz + dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
             _, tep, tgp = client.calcEnergyGrad(txyz)
-            tgp = tgp.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
+            tgp = tgp.value_in_unit(
+                unit.kilocalorie_per_mole / unit.angstrom).ravel()
         # parallel
             txyz = unit.Quantity(
                 value=(oxyz - dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
             _, ten, tgn = client.calcEnergyGrad(txyz)
-            tgn= tgn.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
+            tgn = tgn.value_in_unit(
+                unit.kilocalorie_per_mole / unit.angstrom).ravel()
             hmat[:, gi] = (tgp - tgn) / 2.0 / dx
 
-        #for gi in range(dxyz.shape[0]):
+        # for gi in range(dxyz.shape[0]):
         #    func(gi, calc_hess)
 
-        #for gi in range(dxyz.shape[0]):
+        # for gi in range(dxyz.shape[0]):
         #    pl.spawn(func(gi))
-        #pl.join()
-         
-        gevent.joinall([gevent.spawn(func, gi, calc_hess) for gi in range(dxyz.shape[0])])
+        # pl.join()
+
+        gevent.joinall([gevent.spawn(func, gi, calc_hess)
+                        for gi in range(dxyz.shape[0])])
 
         calc_theta = np.dot(mass_mat, np.dot(calc_hess, mass_mat))
         # change basis
@@ -234,6 +237,57 @@ def multigenHessScore(xyz, hess, mass, template, portlist, state_templates=[], d
     return valid
 
 
+def multigenEnerGradScore(xyzs, eners, grads, template, portlist, state_templates=[], a_ener=1.00, a_grad=1.00):
+    """
+    Generate score func.
+    """
+    def valid(var):
+        """
+        Return score::float
+        """
+        # gen state files
+        try:
+            for name, temp in state_templates:
+                with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
+                    f.write(temp.render(var=np.abs(var)))
+            # gen config file
+            conf = json.loads(template.render(var=var))
+            for n, fn in enumerate(state_templates):
+                conf["diag"][n][
+                    "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
+            # gen halmitonian
+            client = EVBClient(portlist)
+            ret = client.initialize(conf)
+            # calc forces
+            calc_ener = np.zeros((len(xyzs),))
+            calc_grad = np.zeros((len(xyzs), xyzs[0].ravel().shape[0]))
+
+            def func(n, e_array, g_array):
+                _, energy, gradient = client.calcEnergyGrad(xyzs[n])
+                e_array[n] = energy.value_in_unit(unit.kilojoule / unit.mole)
+                g_array[n, :] = gradient.value_in_unit(
+                    unit.kilojoule_per_mole / unit.angstrom).ravel()
+
+            gevent.joinall([gevent.spawn(func, n, calc_ener, calc_grad)
+                            for n in range(len(xyzs))])
+            # compare
+            ref_ener = np.array(
+                [i.value_in_unit(unit.kilojoule / unit.mole) for i in eners])
+            var_ener = np.sqrt(
+                (np.abs((calc_ener - calc_ener.max()) - (ref_ener - ref_ener.max())) ** 2).sum())
+
+            calc_grad = calc_grad.ravel()
+            ref_grad = np.array([i.value_in_unit(
+                unit.kilojoule_per_mole / unit.angstrom).ravel() for i in grads]).ravel()
+
+            var_grad = np.sqrt(((calc_grad - ref_grad) ** 2).mean())
+            return a_grad * var_grad + a_ener * var_ener
+        except Exception as e:
+            print(e)
+            return 100000.0
+    return valid
+
+
 def multidrawHess(xyz, hess, mass, var, template, portlist, state_templates=[], dx=0.00001):
     mass_mat = np.diag(1. / np.sqrt(mass.value_in_unit(unit.amu)))
     hess_v = hess.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom ** 2)
@@ -257,26 +311,30 @@ def multidrawHess(xyz, hess, mass, var, template, portlist, state_templates=[], 
     oxyz = xyz.value_in_unit(unit.angstrom).ravel()
     dxyz = np.eye(oxyz.shape[0])
     calc_hess = np.zeros(dxyz.shape)
+
     def func(gi, hmat):
         txyz = unit.Quantity(
             value=(oxyz + dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
         _, tep, tgp = client.calcEnergyGrad(txyz)
-        tgp = tgp.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
+        tgp = tgp.value_in_unit(
+            unit.kilocalorie_per_mole / unit.angstrom).ravel()
     # parallel
         txyz = unit.Quantity(
             value=(oxyz - dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
         _, ten, tgn = client.calcEnergyGrad(txyz)
-        tgn= tgn.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
+        tgn = tgn.value_in_unit(
+            unit.kilocalorie_per_mole / unit.angstrom).ravel()
         hmat[:, gi] = (tgp - tgn) / 2.0 / dx
 
-    #for gi in range(dxyz.shape[0]):
+    # for gi in range(dxyz.shape[0]):
     #    func(gi, calc_hess)
 
-    #for gi in range(dxyz.shape[0]):
+    # for gi in range(dxyz.shape[0]):
     #    pl.spawn(func(gi))
-    #pl.join()
-     
-    gevent.joinall([gevent.spawn(func, gi, calc_hess) for gi in range(dxyz.shape[0])])
+    # pl.join()
+
+    gevent.joinall([gevent.spawn(func, gi, calc_hess)
+                    for gi in range(dxyz.shape[0])])
 
     calc_theta = np.dot(mass_mat, np.dot(calc_hess, mass_mat))
     # change basis
