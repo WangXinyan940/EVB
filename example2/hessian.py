@@ -1,18 +1,19 @@
 from fit import *
+from multifit import *
 import sys
 import logging
 
-HESSFILE = "hess/ts.log"
+HESSFILE = "freq.fchk"
 TEMPFILE = "conf.temp"
 STATE_TEMPFILE = []
-VAR = np.array([0.00, 0.00, 0.00, 0.00, 0.00,
+VAR = np.array([1.00, 1.00, 1.00, 0.00, 0.00,
                 0.00, 0.00, 0.00, 0.00, 0.00, 
                 0.00, 0.00, 0.00, 0.00, 0.00])
-
+portlist = [5000, 5001, 5002, 5003]
 
 def main():
-    xyz, hess = getGaussianHess(HESSFILE)
-    mass = [12.011, 1.008, 1.008, 1.008, 35.453, 79.904]
+    xyz, hess = getCHKHess(HESSFILE)
+    mass = getCHKMass(HESSFILE)
 
     with open(TEMPFILE, "r") as f:
         template = Template("".join(f))
@@ -22,16 +23,16 @@ def main():
         with open(fname, "r") as f:
             state_templates.append([fname.split(".")[0], Template("".join(f))])
 
-    tfunc = genHessScore(xyz, hess, mass, template,
-                         state_templates=state_templates, a_diag=0.1, a_offdiag=10.00)
+    tfunc = multigenHessScore(xyz, hess, mass, template, portlist,
+                         state_templates=state_templates, a_diag=0.1, a_offdiag=1000.00)
 #    drawPicture(xyzs, eners, grads, VAR, template,
 #                state_templates=state_templates)
-    drawHess(xyz, hess, mass, VAR, template, state_templates=state_templates)
+    multidrawHess(xyz, hess, mass, VAR, template, portlist, state_templates=state_templates)
     #traj = basinhopping(tfunc, VAR, niter=50, T=2.0, pert=2.5)
     min_result = optimize.minimize(tfunc, VAR, jac="2-point", hess="2-point",
                                    method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.01))
     print(min_result.x)
-    drawHess(xyz, hess, mass, min_result.x, template,
+    multidrawHess(xyz, hess, mass, min_result.x, template, portlist,
              state_templates=state_templates)
 
 

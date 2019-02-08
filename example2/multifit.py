@@ -1,15 +1,16 @@
-import gevent
 from gevent import monkey
-monkey.patch_socket()
+monkey.patch_all()
+import gevent
+from gevent import pool
 import json
 import logging
 import socket
 import numpy as np
 import simtk.unit as unit
 from jinja2 import Template
+import matplotlib.pyplot as plt
 import evb
-from gevent.lock import BoundedSemaphore
-sem = BoundedSemaphore(50)
+
 
 
 class EVBServer(object):
@@ -20,12 +21,12 @@ class EVBServer(object):
         self.s.bind(("127.0.0.1", port))
         self.H = None
 
-    def listen(self, max_link=500):
+    def listen(self, max_link=50000):
         logging.info("Listening port %i" % self._port)
         self.s.listen(max_link)
         while True:
             sock, addr = self.s.accept()
-            logging.info("Server:", self._port, "  Client:", addr)
+            logging.info("Server: %i  Client: %s:%i"%(self._port, addr[0], addr[1]))
             try:
                 buff = []
                 while True:
@@ -51,6 +52,7 @@ class EVBServer(object):
                     xyz = xyz.reshape((-1, 3))
                     ener = self._energy(xyz)
                     sock.send(("%16.8f" % ener).encode("utf-8"))
+                    logging.info("Finish.")
                 elif data[:4] == "GRAD":
                     logging.info("Calculate gradient.")
                     xyz = np.array([float(i) for i in data[4:].split()])
@@ -58,11 +60,12 @@ class EVBServer(object):
                     ener, grad = self._gradient(xyz)
                     grad = " ".join("%16.8f" % i for i in grad.ravel())
                     sock.send(("%16.8f " % ener + grad).encode("utf-8"))
+                    logging.info("Finish.")
                 else:
                     logging.warn("Unknown message. Did nothing.")
                     sock.send("ERROR".encode("utf-8"))
             except Exception as e:
-                logging.error("COLLAPSE:", str(e))
+                logging.error("COLLAPSE: " + str(e))
             finally:
                 sock.close()
 
@@ -153,7 +156,7 @@ def multigenHessScore(xyz, hess, mass, template, portlist, state_templates=[], d
     Generate score func.
     """
     # mat decomp
-    mass_mat = np.diag(1. / np.sqrt(mass))
+    mass_mat = np.diag(1. / np.sqrt(mass.value_in_unit(unit.amu)))
     hess_v = hess.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom ** 2)
     theta = np.dot(mass_mat, np.dot(hess_v, mass_mat))
     qe, qv = np.linalg.eig(theta)
@@ -181,21 +184,27 @@ def multigenHessScore(xyz, hess, mass, template, portlist, state_templates=[], d
         dxyz = np.eye(oxyz.shape[0])
         calc_hess = np.zeros(dxyz.shape)
 
-        def func(gi):
+        def func(gi, hmat):
             txyz = unit.Quantity(
                 value=(oxyz + dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
             _, tep, tgp = client.calcEnergyGrad(txyz)
-            calc_hess[:, gi] = calc_hess[
-                :, gi] + tgp.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
+            tgp = tgp.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
         # parallel
             txyz = unit.Quantity(
                 value=(oxyz - dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
             _, ten, tgn = client.calcEnergyGrad(txyz)
-            calc_hess[:, gi] = calc_hess[
-                :, gi] - tgn.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
-        gevent.joinall([gevent.spawn(func, gi) for gi in range(dxyz.shape[0])])
+            tgn= tgn.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
+            hmat[:, gi] = (tgp - tgn) / 2.0 / dx
 
-        calc_hess = calc_hess / 2.0 / dx
+        #for gi in range(dxyz.shape[0]):
+        #    func(gi, calc_hess)
+
+        #for gi in range(dxyz.shape[0]):
+        #    pl.spawn(func(gi))
+        #pl.join()
+         
+        gevent.joinall([gevent.spawn(func, gi, calc_hess) for gi in range(dxyz.shape[0])])
+
         calc_theta = np.dot(mass_mat, np.dot(calc_hess, mass_mat))
         # change basis
         calc_theta_p = np.dot(qvI, np.dot(calc_theta, qv))
@@ -215,9 +224,82 @@ def multigenHessScore(xyz, hess, mass, template, portlist, state_templates=[], d
             2.99792458e10 * np.sign(vib_mm)
 
         var = (calc_theta_p - theta_p) ** 2
-        var_diag = (((vib_qm - vib_mm) / vib_qm) ** 2).sum() / vib_mm.shape[0]
+        s_qm = np.sort(np.abs(vib_qm))[6:]
+        s_mm = np.sort(np.abs(vib_mm))[6:]
+        var_diag = ((s_qm - s_mm) ** 2).sum() / s_mm.shape[0]
         var_offdiag = (var - np.diag(np.diag(var))).sum() / \
             (var.shape[0] ** 2 - var.shape[0])
         return a_diag * var_diag + a_offdiag * var_offdiag
 
     return valid
+
+
+def multidrawHess(xyz, hess, mass, var, template, portlist, state_templates=[], dx=0.00001):
+    mass_mat = np.diag(1. / np.sqrt(mass.value_in_unit(unit.amu)))
+    hess_v = hess.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom ** 2)
+    theta = np.dot(mass_mat, np.dot(hess_v, mass_mat))
+    qe, qv = np.linalg.eig(theta)
+    qvI = np.linalg.inv(qv)
+    theta_p = np.dot(qvI, np.dot(theta, qv))
+
+    for name, temp in state_templates:
+        with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
+            f.write(temp.render(var=np.abs(var)))
+    # gen config file
+    conf = json.loads(template.render(var=var))
+    for n, fn in enumerate(state_templates):
+        conf["diag"][n][
+            "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
+    # gen halmitonian
+    client = EVBClient(portlist)
+    ret = client.initialize(conf)
+    # calc hess (unit in kJ / mol / A^2)
+    oxyz = xyz.value_in_unit(unit.angstrom).ravel()
+    dxyz = np.eye(oxyz.shape[0])
+    calc_hess = np.zeros(dxyz.shape)
+    def func(gi, hmat):
+        txyz = unit.Quantity(
+            value=(oxyz + dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
+        _, tep, tgp = client.calcEnergyGrad(txyz)
+        tgp = tgp.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
+    # parallel
+        txyz = unit.Quantity(
+            value=(oxyz - dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
+        _, ten, tgn = client.calcEnergyGrad(txyz)
+        tgn= tgn.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom).ravel()
+        hmat[:, gi] = (tgp - tgn) / 2.0 / dx
+
+    #for gi in range(dxyz.shape[0]):
+    #    func(gi, calc_hess)
+
+    #for gi in range(dxyz.shape[0]):
+    #    pl.spawn(func(gi))
+    #pl.join()
+     
+    gevent.joinall([gevent.spawn(func, gi, calc_hess) for gi in range(dxyz.shape[0])])
+
+    calc_theta = np.dot(mass_mat, np.dot(calc_hess, mass_mat))
+    # change basis
+    calc_theta_p = np.dot(qvI, np.dot(calc_theta, qv))
+    var = (calc_theta_p - theta_p) ** 2
+    f = plt.imshow(var)
+    plt.colorbar(f)
+    plt.show()
+    vib_qm, vib_mm = np.diag(theta_p), np.diag(calc_theta_p)
+    vib_qm = unit.Quantity(
+        vib_qm, unit.kilocalorie_per_mole / unit.angstrom ** 2 / unit.amu)
+    vib_mm = unit.Quantity(
+        vib_mm, unit.kilocalorie_per_mole / unit.angstrom ** 2 / unit.amu)
+    vib_qm = vib_qm.value_in_unit(unit.joule / unit.meter ** 2 / unit.kilogram)
+    vib_mm = vib_mm.value_in_unit(unit.joule / unit.meter ** 2 / unit.kilogram)
+    vib_qm = np.sqrt(np.abs(vib_qm)) / 2. / np.pi / \
+        2.99792458e10 * np.sign(vib_qm)
+    vib_mm = np.sqrt(np.abs(vib_mm)) / 2. / np.pi / \
+        2.99792458e10 * np.sign(vib_mm)
+    plt.scatter(vib_qm, vib_mm)
+    vmin = min([vib_qm.min(), vib_mm.min()])
+    vmax = max([vib_qm.max(), vib_mm.max()])
+    plt.plot([vmin, vmax], [vmin, vmax], c="black", ls="--")
+    plt.xlabel("QM Freq")
+    plt.ylabel("FF Freq")
+    plt.show()
