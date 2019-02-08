@@ -28,8 +28,8 @@ def getGaussEnergyGradient(fname):
     with open(fname, "r") as f:
         text = f.readlines()
 
-    start = findline(text, "Input orientation")[0] + 5
-    end = findline(text, "Distance matrix (angstroms)")[0] - 1
+    start = findline(text, "Standard orientation")[0] + 5
+    end = findline(text, "Rotational constants")[0] - 1
     data = text[start:end]
     data = [i.strip().split() for i in data]
     xyz = [[float(j) for j in i[-3:]] for i in data]
