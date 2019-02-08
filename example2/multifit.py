@@ -10,6 +10,8 @@ import simtk.unit as unit
 from jinja2 import Template
 import matplotlib.pyplot as plt
 import evb
+from gevent.lock import BoundedSemaphore
+sem = BoundedSemaphore(200)
 
 
 class EVBServer(object):
@@ -185,6 +187,7 @@ def multigenHessScore(xyz, hess, mass, template, portlist, state_templates=[], d
         calc_hess = np.zeros(dxyz.shape)
 
         def func(gi, hmat):
+            sem.acquire()
             txyz = unit.Quantity(
                 value=(oxyz + dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
             _, tep, tgp = client.calcEnergyGrad(txyz)
@@ -197,6 +200,7 @@ def multigenHessScore(xyz, hess, mass, template, portlist, state_templates=[], d
             tgn = tgn.value_in_unit(
                 unit.kilocalorie_per_mole / unit.angstrom).ravel()
             hmat[:, gi] = (tgp - tgn) / 2.0 / dx
+            sem.release()
 
         # for gi in range(dxyz.shape[0]):
         #    func(gi, calc_hess)
@@ -263,10 +267,12 @@ def multigenEnerGradScore(xyzs, eners, grads, template, portlist, state_template
             calc_grad = np.zeros((len(xyzs), xyzs[0].ravel().shape[0]))
 
             def func(n, e_array, g_array):
+                sem.acquire()
                 _, energy, gradient = client.calcEnergyGrad(xyzs[n])
                 e_array[n] = energy.value_in_unit(unit.kilojoule / unit.mole)
                 g_array[n, :] = gradient.value_in_unit(
                     unit.kilojoule_per_mole / unit.angstrom).ravel()
+                sem.release()
 
             gevent.joinall([gevent.spawn(func, n, calc_ener, calc_grad)
                             for n in range(len(xyzs))])
@@ -286,6 +292,45 @@ def multigenEnerGradScore(xyzs, eners, grads, template, portlist, state_template
             print(e)
             return 100000.0
     return valid
+
+
+def multidrawGradient(xyzs, grads, var, template, portlist, state_templates=[]):
+
+    for name, temp in state_templates:
+        with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
+            f.write(temp.render(var=np.abs(var)))
+    # gen config file
+    conf = json.loads(template.render(var=var))
+    for n, fn in enumerate(state_templates):
+        conf["diag"][n]["parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
+    # gen halmitonian
+    client = EVBClient(portlist)
+    ret = client.initialize(conf)
+    # calc forces
+    calc_ener = np.zeros((len(xyzs),))
+    calc_grad = np.zeros((len(xyzs), xyzs[0].ravel().shape[0]))
+
+    def func(n, e_array, g_array):
+        sem.acquire()
+        _, energy, gradient = client.calcEnergyGrad(xyzs[n])
+        e_array[n] = energy.value_in_unit(unit.kilojoule / unit.mole)
+        g_array[n, :] = gradient.value_in_unit(
+            unit.kilojoule_per_mole / unit.angstrom).ravel()
+        sem.release()
+
+    gevent.joinall([gevent.spawn(func, n, calc_ener, calc_grad)
+                    for n in range(len(xyzs))])
+    # compare
+    calc_grad = calc_grad.ravel()
+    ref_grad = np.array([i.value_in_unit(
+        unit.kilojoule_per_mole / unit.angstrom).ravel() for i in grads]).ravel()
+
+    plt.plot([calc_grad.min(), calc_grad.max()],
+             [calc_grad.min(), calc_grad.max()])
+    plt.scatter(calc_grad.ravel(), ref_grad.ravel())
+    plt.xlabel("CALC GRADIENT")
+    plt.ylabel("REF GRADIENT")
+    plt.show()
 
 
 def multidrawHess(xyz, hess, mass, var, template, portlist, state_templates=[], dx=0.00001):
@@ -313,6 +358,7 @@ def multidrawHess(xyz, hess, mass, var, template, portlist, state_templates=[], 
     calc_hess = np.zeros(dxyz.shape)
 
     def func(gi, hmat):
+        sem.acquire()
         txyz = unit.Quantity(
             value=(oxyz + dxyz[:, gi] * dx).reshape((-1, 3)), unit=unit.angstrom)
         _, tep, tgp = client.calcEnergyGrad(txyz)
@@ -325,7 +371,7 @@ def multidrawHess(xyz, hess, mass, var, template, portlist, state_templates=[], 
         tgn = tgn.value_in_unit(
             unit.kilocalorie_per_mole / unit.angstrom).ravel()
         hmat[:, gi] = (tgp - tgn) / 2.0 / dx
-
+        sem.release()
     # for gi in range(dxyz.shape[0]):
     #    func(gi, calc_hess)
 
