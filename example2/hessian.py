@@ -2,6 +2,7 @@ from fit import *
 from multifit import *
 import sys
 import logging
+import os
 
 HESSFILE = "freq.fchk"
 TEMPFILE = "conf.temp"
@@ -15,6 +16,15 @@ def main():
     xyz, hess = getCHKHess(HESSFILE)
     mass = getCHKMass(HESSFILE)
 
+    xyzs, eners, grads = [], [], []
+    FORCEDIR = "force/"
+    for fname in os.listdir(FORCEDIR):
+        if fname.split(".")[-1] == "log":
+            xyz, energy, grad = getGaussEnergyGradient(FORCEDIR+fname)
+            xyzs.append(xyz)
+            eners.append(energy)
+            grads.append(grad)
+
     with open(TEMPFILE, "r") as f:
         template = Template("".join(f))
 
@@ -23,11 +33,13 @@ def main():
         with open(fname, "r") as f:
             state_templates.append([fname.split(".")[0], Template("".join(f))])
 
-    tfunc = multigenHessScore(xyz, hess, mass, template, portlist,
-                         state_templates=state_templates, a_diag=0.1, a_offdiag=1000.00)
+    hfunc = multigenHessScore(xyz, hess, mass, template, portlist,
+                         state_templates=state_templates, a_diag=1.0, a_offdiag=50.00)
+    gfunc = multigenEnerGradScore(xyzs, eners, grads, template, portlist)
+    tfunc = lambda v: hfunc(v) + gfunc(v)
 #    drawPicture(xyzs, eners, grads, VAR, template,
 #                state_templates=state_templates)
-    multidrawHess(xyz, hess, mass, VAR, template, portlist, state_templates=state_templates)
+#    multidrawHess(xyz, hess, mass, VAR, template, portlist, state_templates=state_templates)
     #traj = basinhopping(tfunc, VAR, niter=50, T=2.0, pert=2.5)
     min_result = optimize.minimize(tfunc, VAR, jac="2-point", hess="2-point",
                                    method='L-BFGS-B', options=dict(maxiter=1000, disp=True, gtol=0.01))
