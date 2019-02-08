@@ -5,7 +5,6 @@ import numpy as np
 import simtk.unit as unit
 from scipy import optimize
 from jinja2 import Template
-sys.path.append("..")
 import evb
 import matplotlib.pyplot as plt
 from sklearn.gaussian_process import GaussianProcessRegressor
@@ -103,6 +102,7 @@ def getCHKHess(fname):
         text = f.readlines()
     xyz = readXYZ(text)
     hess = readHess(text)
+    return xyz, hess
 
 
 def getCHKMass(fname):
@@ -322,12 +322,7 @@ def drawGradient(xyzs, grads, var, template, state_templates=[]):
 
 
 def drawHess(xyz, hess, mass, var, template, state_templates=[], dx=0.00001):
-    mass_mat = []
-    for i in mass:
-        mass_mat.append(i)
-        mass_mat.append(i)
-        mass_mat.append(i)
-    mass_mat = np.diag(1. / np.sqrt(mass_mat))
+    mass_mat = np.diag(1. / np.sqrt(mass))
     hess_v = hess.value_in_unit(unit.kilocalorie_per_mole / unit.angstrom ** 2)
     theta = np.dot(mass_mat, np.dot(hess_v, mass_mat))
     qe, qv = np.linalg.eig(theta)
