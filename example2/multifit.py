@@ -113,7 +113,6 @@ class EVBClient(object):
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         pt = self.port_list[self.pi % len(self.port_list)]
         self.pi += 1
-        print(pt)
         s.connect(("127.0.0.1", pt))
         data = "ENER" + " ".join("%16.8f" % i for i in xyz_no_unit.ravel())
         s.send(data.encode("utf-8"))
@@ -128,7 +127,9 @@ class EVBClient(object):
     def calcEnergyGrad(self, xyz):
         xyz_no_unit = xyz.value_in_unit(unit.angstrom)
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        s.connect(("127.0.0.1", np.random.choice(self.port_list)))
+        pt = self.port_list[self.pi % len(self.port_list)]
+        self.pi += 1
+        s.connect(("127.0.0.1", pt))
         data = "GRAD" + " ".join("%16.8f" % i for i in xyz_no_unit.ravel())
         s.send(data.encode("utf-8"))
         buff = []
