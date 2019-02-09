@@ -99,19 +99,23 @@ class EVBClient(object):
         self.pi = 0
 
     def initialize(self, conf):
-        for pt in self.port_list:
+        ifok = np.zeros((len(self.port_list),))
+        def init(pt, n, ifok):
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.connect(("127.0.0.1", pt))
             data = "INIT" + json.dumps(conf)
             s.send(data.encode("utf-8"))
             ret = s.recv(1024).decode("utf-8")
-            if ret == "FINISH":
-                ans = 0
-            else:
-                ans = 1
-                break
+            if not ret == "FINISH":
+                ifok[n] = 1
+                logging.error("INIT FAIL!!!")
             s.close()
-        return ans
+
+        gevent.joinall([gevent.spawn(init, pt, n, ifok) for n, pt in enumerate(self.port_list)])
+        if ifok.sum() > 1e-5:
+            return 1
+        return 0
+
 
     def calcEnergy(self, xyz):
         xyz_no_unit = xyz.value_in_unit(unit.angstrom)
@@ -124,6 +128,7 @@ class EVBClient(object):
         ret = s.recv(1024).decode("utf-8")
         if ret == "ERROR":
             ans = 1
+            return ans, ans
         else:
             ans = 0
         s.close()
@@ -146,6 +151,7 @@ class EVBClient(object):
         ret = b"".join(buff).decode("utf-8")
         if ret == "ERROR":
             ans = 1
+            return ans, ans, ans
         else:
             ans = 0
         s.close()
@@ -265,16 +271,19 @@ def multigenEnerGradScore(xyzs, eners, grads, template, portlist, state_template
             # calc forces
             calc_ener = np.zeros((len(xyzs),))
             calc_grad = np.zeros((len(xyzs), xyzs[0].ravel().shape[0]))
+            ifok = 0
 
-            def func(n, e_array, g_array):
+            def func(n, e_array, g_array, ifok):
                 sem.acquire()
                 _, energy, gradient = client.calcEnergyGrad(xyzs[n])
-                e_array[n] = energy.value_in_unit(unit.kilojoule / unit.mole)
-                g_array[n, :] = gradient.value_in_unit(
-                    unit.kilojoule_per_mole / unit.angstrom).ravel()
+                if _ == 0:
+                    e_array[n] = energy.value_in_unit(unit.kilojoule / unit.mole)
+                    g_array[n, :] = gradient.value_in_unit(
+                        unit.kilojoule_per_mole / unit.angstrom).ravel()
+                ifok += _
                 sem.release()
 
-            gevent.joinall([gevent.spawn(func, n, calc_ener, calc_grad)
+            gevent.joinall([gevent.spawn(func, n, calc_ener, calc_grad, ifok)
                             for n in range(len(xyzs))])
             # compare
             ref_ener = np.array(
