@@ -7,9 +7,10 @@ import os
 HESSFILE = "freq.fchk"
 TEMPFILE = "conf.temp"
 STATE_TEMPFILE = []
-VAR = np.array([1.00, 1.00, 1.00, 0.00, 0.00,
-                0.00, 0.00, 0.00, 0.00, 0.00, 
-                0.00, 0.00, 0.00, 0.00, 0.00])
+VAR = np.array([365.1560798272886,  -370.9091564905557,  23.7498531682483,  -5.578171430511826,
+                6.746490111859442,  -86.06126054764621,  24.930598724683293,  -33.86685593068339,
+                23.986752808835867,  48.63218346604885,  -115.93874045209743,  35.274995414925925,
+                54.723615215648444,  -81.82033046918013,  46.382985481108726])
 portlist = [i for i in range(5000,5017)]
 
 def main():
@@ -40,9 +41,9 @@ def main():
 #    drawPicture(xyzs, eners, grads, VAR, template,
 #                state_templates=state_templates)
 #    multidrawHess(xyz, hess, mass, VAR, template, portlist, state_templates=state_templates)
-    traj = basinhopping(gfunc, VAR, niter=50, T=2.0, pert=15.0)
-    print(min_result.x)
-    multidrawHess(xyz, hess, mass, min_result.x, template, portlist,
+    traj = basinhopping(gfunc, VAR, niter=100, T=5.0, pert=15.0)
+    print(traj[0][0])
+    multidrawHess(xyz, hess, mass, traj[0][0], template, portlist,
              state_templates=state_templates)
 
 
@@ -50,5 +51,14 @@ if __name__ == '__main__':
     if len(sys.argv) == 1:
         print("LOG file needed.\nExit.")
         exit()
-    logging.basicConfig(filename=sys.argv[1], level=logging.INFO)
+    logger = logging.getLogger()
+    logger.setLevel(logging.DEBUG)
+    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s: - %(message)s',datefmt='%Y-%m-%d %H:%M:%S')
+    ch = logging.StreamHandler()
+    ch.setLevel(logging.DEBUG)
+    ch.setFormatter(formatter)
+    fh = logging.FileHandler(sys.argv[1])
+    fh.setFormatter(formatter)
+    logger.addHandler(ch)
+    logger.addHandler(fh)
     main()
