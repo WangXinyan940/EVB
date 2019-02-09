@@ -381,7 +381,7 @@ def drawHess(xyz, hess, mass, var, template, state_templates=[], dx=0.00001):
     plt.show()
 
 
-def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0, inner_iter=200):
+def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0, method="L-BFGS-B", options=dict(maxiter=200, disp=True, gtol=0.1, maxls=10)):
     newvar = np.zeros(var.shape)
     newvar[:] = var[:]
     posvar = np.zeros(var.shape)
@@ -391,7 +391,7 @@ def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0, inner_iter=
     for ni in range(niter):
         logging.info("Round %i. Start BFGS." % ni)
         min_result = optimize.minimize(score, newvar, jac="2-point", hess="2-point",
-                                       method='L-BFGS-B', options=dict(maxiter=inner_iter, disp=True, gtol=0.1, maxls=10))
+                                       method=method, options=options)
         logging.info("Result:  " + "  ".join("{}".format(_)
                                              for _ in min_result.x))
         t_score = score(min_result.x)
