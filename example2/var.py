@@ -62,6 +62,8 @@ def main():
                      "  ".join("{}".format(_) for _ in min_result.x))
         result.append([min_result.fun, min_result.x])
     sort_result = sorted(result, key=lambda x: x[0])
+    logging.info("Minimum score: %.6f" % sort_result[0][0] + " Result:  " +
+                 "  ".join("{}".format(_) for _ in sort_result[0][1]))
     multidrawHess(xyz, hess, mass, sort_result[0][0], template, portlist,
                   state_templates=state_templates)
 
