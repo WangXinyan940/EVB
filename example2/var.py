@@ -7,11 +7,12 @@ import os
 HESSFILE = "freq.fchk"
 TEMPFILE = "conf.temp"
 STATE_TEMPFILE = []
-VAR = np.array([0.0, -741.0, -786.0, 
+VAR = np.array([0.0, -741.0, -786.0,
                 2.9815490408547145,  -6.60189337219787,  2.964041042557548,  0.6425293989814105,
                 2.5422464186777733,  0.25567283154978065,  9.141012520108227,  -5.41697473407947,
                 0.21740949899967177,  -8.810512182322086,  -0.7280651221148342,  -3.1822952690936885])
-portlist = [i for i in range(5000,5017)]
+portlist = [i for i in range(5000, 5017)]
+
 
 def main():
     xyz, hess = getCHKHess(HESSFILE)
@@ -21,10 +22,10 @@ def main():
     FORCEDIR = "force/"
     for fname in os.listdir(FORCEDIR):
         if fname.split(".")[-1] == "log":
-            xyz, energy, grad = getGaussEnergyGradient(FORCEDIR+fname)
-            xyzs.append(xyz)
-            eners.append(energy)
-            grads.append(grad)
+            xyz_, energy_, grad_ = getGaussEnergyGradient(FORCEDIR + fname)
+            xyzs.append(xyz_)
+            eners.append(energy_)
+            grads.append(grad_)
 
     with open(TEMPFILE, "r") as f:
         template = Template("".join(f))
@@ -35,16 +36,34 @@ def main():
             state_templates.append([fname.split(".")[0], Template("".join(f))])
 
     hfunc = multigenHessScore(xyz, hess, mass, template, portlist,
-                         state_templates=state_templates, a_diag=1.0, a_offdiag=50.00)
+                              state_templates=state_templates, a_diag=1.0, a_offdiag=50.00)
     gfunc = multigenEnerGradScore(xyzs, eners, grads, template, portlist)
     tfunc = lambda v: hfunc(v) + gfunc(v)
 #    drawPicture(xyzs, eners, grads, VAR, template,
 #                state_templates=state_templates)
 #    multidrawHess(xyz, hess, mass, VAR, template, portlist, state_templates=state_templates)
-    traj = basinhopping(gfunc, VAR, niter=100, T=5.0, pert=5.0)
-    print(traj[0][0])
-    multidrawHess(xyz, hess, mass, traj[0][0], template, portlist,
-             state_templates=state_templates)
+    var_list = []
+    for i in range(len(2 ** VAR.shape[0] - 1)):
+        var_list.append("{:0>15}".format(bin(i)[2:]))
+
+    def f(v, l):
+        ret = np.zeros(v.shape)
+        for n, i in enumerate(l):
+            if i == "0":
+                ret[n] = - v[n]
+            else:
+                ret[n] = v[n]
+    var_list = [f(VAR, i) for i in var_list]
+    result = []
+    for v in var_list:
+        min_result = optimize.minimize(gfunc, newvar, jac="2-point", method="L-BFGS-B",
+                                       options=dict(maxiter=200, disp=True, gtol=0.1, maxls=10))
+        logging.info("Score: %.6f" % min_result.fun + " Result:  " +
+                     "  ".join("{}".format(_) for _ in min_result.x))
+        result.append([min_result.fun, min_result.x])
+    sort_result = sorted(result, key=lambda x: x[0])
+    multidrawHess(xyz, hess, mass, sort_result[0][0], template, portlist,
+                  state_templates=state_templates)
 
 
 if __name__ == '__main__':
@@ -53,7 +72,8 @@ if __name__ == '__main__':
         exit()
     logger = logging.getLogger()
     logger.setLevel(logging.DEBUG)
-    formatter = logging.Formatter('%(asctime)s - %(name)s - %(levelname)s: - %(message)s',datefmt='%Y-%m-%d %H:%M:%S')
+    formatter = logging.Formatter(
+        '%(asctime)s - %(name)s - %(levelname)s: - %(message)s', datefmt='%Y-%m-%d %H:%M:%S')
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG)
     ch.setFormatter(formatter)
