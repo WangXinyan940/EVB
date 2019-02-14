@@ -43,7 +43,7 @@ def main():
 #                state_templates=state_templates)
 #    multidrawHess(xyz, hess, mass, VAR, template, portlist, state_templates=state_templates)
     var_list = []
-    for i in range(len(2 ** VAR.shape[0] - 1)):
+    for i in range(2 ** VAR.shape[0] - 1):
         var_list.append("{:0>15}".format(bin(i)[2:]))
 
     def f(v, l):
