@@ -7,10 +7,9 @@ import os
 HESSFILE = "freq.fchk"
 TEMPFILE = "conf.temp"
 STATE_TEMPFILE = []
-VAR = np.array([361.67202035429597, -240.12848520499725, -25.86261306774204, -125.96995844586883, 
-    39.145935052911796, -143.36153062589176, -162.2467754783517, -111.5208469541575, 
-    120.23458002172724, -115.85686007533702, -61.459256578471475, -163.04250721416707,
-     -48.211470083545024, -178.1182596584995, 140.4139187096606])
+VAR = np.array([2.9815490408547145,  -6.60189337219787,  2.964041042557548,  0.6425293989814105,
+                2.5422464186777733,  0.25567283154978065,  9.141012520108227,  -5.41697473407947,
+                0.21740949899967177,  -8.810512182322086,  -0.7280651221148342,  -3.1822952690936885, 0.0])
 portlist = [i for i in range(5000,5017)]
 
 def main():
@@ -41,7 +40,7 @@ def main():
 #    drawPicture(xyzs, eners, grads, VAR, template,
 #                state_templates=state_templates)
 #    multidrawHess(xyz, hess, mass, VAR, template, portlist, state_templates=state_templates)
-    traj = basinhopping(gfunc, VAR, niter=100, T=5.0, pert=15.0)
+    traj = basinhopping(gfunc, VAR, niter=100, T=5.0, pert=5.0)
     print(traj[0][0])
     multidrawHess(xyz, hess, mass, traj[0][0], template, portlist,
              state_templates=state_templates)

@@ -77,7 +77,7 @@ class EVBServer(object):
                 sock.close()
 
     def _initialize(self, conf):
-        if self.H:
+        if self.H is not None:
             del self.H
         self.H = evb.EVBHamiltonian(conf)
 

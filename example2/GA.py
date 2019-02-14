@@ -12,9 +12,9 @@ VAR = np.array([365.1560798272886,  -370.9091564905557,  23.7498531682483,  -5.5
                 23.986752808835867,  48.63218346604885,  -115.93874045209743,  35.274995414925925,
                 54.723615215648444,  -81.82033046918013,  46.382985481108726])
 portlist = [i for i in range(5000,5017)]
-INIT = 1000
-NSAMPLE = 360
-REMAIN = 250
+INIT = 2000
+NSAMPLE = 1000
+REMAIN = 600
 NROUND = 200
 
 def mult(v1, v2):
@@ -65,7 +65,7 @@ def main():
 #                state_templates=state_templates)
 #    multidrawHess(xyz, hess, mass, VAR, template, portlist, state_templates=state_templates)
     
-    RES = [(np.random.random(VAR.shape) * 2. - 1.) * 200.0 for _ in range(INIT)]
+    RES = [(np.random.random(VAR.shape) * 2. - 1.) * 1000.0 for _ in range(INIT)]
     for ni in range(NROUND):
         logging.info("Round {}".format(ni))
         score_list = sorted([[gfunc(i),i] for i in RES], key=lambda x:x[0])

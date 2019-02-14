@@ -4,17 +4,17 @@
         {
             "topology":"state_1.pdb",
             "parameter":"state_1.xml",
-            "V":{{ var[0] }}
+            "V":{{ var[-1] + 0.0 }}
         },
         {
             "topology":"state_2.pdb",
             "parameter":"state_2.xml",
-            "V":{{ var[1] }}
+            "V":{{ var[-1] - 741.0 }}
         },
         {
             "topology":"state_3.pdb",
             "parameter":"state_3.xml",
-            "V":{{ var[2] }}
+            "V":{{ var[-1] - 786.0 }}
         }
     ],
     "off_diag":[
@@ -27,8 +27,8 @@
                 ["B", 49, 51],
                 ["A", 50, 49, 51]
             ],
-            "parameter":[{{ var[3] }},{{ var[4] }},{{ var[5] }},{{ var[6] }},{{ var[7] }}],
-            "A":{{ var[8] }}
+            "parameter":[{{ var[0] }},{{ var[1] }},{{ var[2] }},{{ var[3] }},{{ var[4] }}],
+            "A":{{ var[5] }}
         },
         {
             "from":2,
@@ -39,8 +39,8 @@
                 ["B", 49, 51],
                 ["A", 50, 52, 51]
             ],
-            "parameter":[{{ var[9] }},{{ var[10] }},{{ var[11] }},{{ var[12] }},{{ var[13] }}],
-            "A":{{ var[14] }}
+            "parameter":[{{ var[6] }},{{ var[7] }},{{ var[8] }},{{ var[9] }},{{ var[10] }}],
+            "A":{{ var[11] }}
         }
     ]
 }

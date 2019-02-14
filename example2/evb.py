@@ -7,6 +7,7 @@ MS-EVB engine to calculate EVB energy and force.
 import os
 import json
 import sys
+import logging
 import numpy as np
 import simtk.openmm as mm
 import simtk.openmm.app as app
@@ -114,26 +115,30 @@ class EVBHamiltonian(object):
     """
 
     def __init__(self, conf):
-        self.diag = []
-        self.off_diag = []
-        self.V = []
-        for d in conf["diag"]:
-            pdbname, xmlname = d["topology"], d["parameter"]
-            self.V.append(d["V"])
-            ff = app.ForceField(xmlname)
-            pdb = app.PDBFile(pdbname)
-            system = ff.createSystem(pdb.topology, nonbondedMethod=app.NoCutoff,
-                                     polarization='mutual', mutualInducedTargetEpsilon=0.00001, removeCMMotion=False)
-            integrator = mm.LangevinIntegrator(
-                195 * unit.kelvin, 1 / unit.picosecond, 0.0005 * unit.picoseconds)
-            if "platform" in conf:
-                context = mm.Context(system, integrator, mm.Platform.getPlatformByName(conf["platform"].upper()))
-            else:
-                context = mm.Context(system, integrator)
-            self.diag.append(context)
-        for offd in conf["off_diag"]:
-            self.off_diag.append(offd)
-        self.emat = np.zeros((len(self.diag), len(self.diag)))
+        try:
+            self.diag = []
+            self.off_diag = []
+            self.V = []
+            for d in conf["diag"]:
+                pdbname, xmlname = d["topology"], d["parameter"]
+                self.V.append(d["V"])
+                ff = app.ForceField(xmlname)
+                pdb = app.PDBFile(pdbname)
+                system = ff.createSystem(pdb.topology, nonbondedMethod=app.NoCutoff,
+                                         polarization='mutual', mutualInducedTargetEpsilon=0.00001, removeCMMotion=False)
+                integrator = mm.LangevinIntegrator(
+                    195 * unit.kelvin, 1 / unit.picosecond, 0.0005 * unit.picoseconds)
+                if "platform" in conf:
+                    context = mm.Context(system, integrator, mm.Platform.getPlatformByName(conf["platform"].upper()))
+                else:
+                    context = mm.Context(system, integrator)
+                self.diag.append(context)
+            for offd in conf["off_diag"]:
+                self.off_diag.append(offd)
+            self.emat = np.zeros((len(self.diag), len(self.diag)))
+        except Exception as e:
+            logging.error(str(e))
+            raise e
 
     def _calc_energy_from_context(self, xyz, context):
         context.setPositions(xyz)
