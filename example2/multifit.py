@@ -14,9 +14,13 @@ from gevent.lock import BoundedSemaphore
 sem = BoundedSemaphore(200)
 
 
-
 class ParamFail(BaseException):
     pass
+
+
+class InitFail(BaseException):
+    pass
+
 
 class EVBServer(object):
 
@@ -77,7 +81,11 @@ class EVBServer(object):
                 sock.close()
 
     def _initialize(self, conf):
-        self.H = evb.EVBHamiltonian(conf)
+        try:
+            self.H = evb.EVBHamiltonian(conf)
+        except Exception as e:
+            logging.error("INIT FAIL: " + str(e))
+            raise e
 
     def _energy(self, xyz):
         xyz = unit.Quantity(xyz, unit.angstrom)
@@ -100,9 +108,11 @@ class EVBClient(object):
     def __init__(self, port_list=[]):
         self.port_list = port_list
         self.pi = 0
+        self.state = 0  # 0: haven't init, 1: init success, 2: init fail
 
     def initialize(self, conf):
         ifok = np.zeros((len(self.port_list),))
+
         def init(pt, n, ifok):
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(10)
@@ -115,11 +125,10 @@ class EVBClient(object):
                 logging.error("INIT FAIL!!!")
             s.close()
 
-        gevent.joinall([gevent.spawn(init, pt, n, ifok) for n, pt in enumerate(self.port_list)])
+        gevent.joinall([gevent.spawn(init, pt, n, ifok)
+                        for n, pt in enumerate(self.port_list)])
         if ifok.sum() > 1e-5:
-            return 1
-        return 0
-
+            raise InitFail("Init fail. Job stop.")
 
     def calcEnergy(self, xyz):
         xyz_no_unit = xyz.value_in_unit(unit.angstrom)
@@ -148,7 +157,8 @@ class EVBClient(object):
         s.settimeout(10)
         s.connect(("127.0.0.1", pt))
         try:
-            data = "GRAD" + " ".join("%18.10f" % i for i in xyz_no_unit.ravel())
+            data = "GRAD" + " ".join("%18.10f" %
+                                     i for i in xyz_no_unit.ravel())
             s.send(data.encode("utf-8"))
             buff = []
             while True:
@@ -170,6 +180,7 @@ class EVBClient(object):
             logging.debug("Client error " + str(e))
             s.close()
             raise e
+
 
 def multigenHessScore(xyz, hess, mass, template, portlist, state_templates=[], dx=0.00001, a_diag=1.00, a_offdiag=1.00):
     """
@@ -195,10 +206,11 @@ def multigenHessScore(xyz, hess, mass, template, portlist, state_templates=[], d
             # gen config file
             conf = json.loads(template.render(var=var))
             for n, fn in enumerate(state_templates):
-                conf["diag"][n]["parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
+                conf["diag"][n][
+                    "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
             # gen halmitonian
             client = EVBClient(portlist)
-            ret = client.initialize(conf)
+            client.initialize(conf)
             # calc hess (unit in kJ / mol / A^2)
             oxyz = xyz.value_in_unit(unit.angstrom).ravel()
             dxyz = np.eye(oxyz.shape[0])
@@ -226,7 +238,6 @@ def multigenHessScore(xyz, hess, mass, template, portlist, state_templates=[], d
                 except ParamFail as e:
                     sem.release()
                     return 1
-                
 
             # for gi in range(dxyz.shape[0]):
             #    func(gi, calc_hess)
@@ -236,7 +247,7 @@ def multigenHessScore(xyz, hess, mass, template, portlist, state_templates=[], d
             # pl.join()
 
             ret = gevent.joinall([gevent.spawn(func, gi, calc_hess)
-                            for gi in range(dxyz.shape[0])])
+                                  for gi in range(dxyz.shape[0])])
             if sum([i.value for i in ret]) > 1e-5:
                 raise ParamFail("Emmmmmm")
             calc_theta = np.dot(mass_mat, np.dot(calc_hess, mass_mat))
@@ -290,7 +301,7 @@ def multigenEnerGradScore(xyzs, eners, grads, template, portlist, state_template
                     "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
             # gen halmitonian
             client = EVBClient(portlist)
-            ret = client.initialize(conf)
+            client.initialize(conf)
             # calc forces
             calc_ener = np.zeros((len(xyzs),))
             calc_grad = np.zeros((len(xyzs), xyzs[0].ravel().shape[0]))
@@ -300,7 +311,8 @@ def multigenEnerGradScore(xyzs, eners, grads, template, portlist, state_template
                 try:
                     _, energy, gradient = client.calcEnergyGrad(xyzs[n])
                     if _ == 0:
-                        e_array[n] = energy.value_in_unit(unit.kilojoule / unit.mole)
+                        e_array[n] = energy.value_in_unit(
+                            unit.kilojoule / unit.mole)
                         g_array[n, :] = gradient.value_in_unit(
                             unit.kilojoule_per_mole / unit.angstrom).ravel()
                     sem.release()
@@ -311,7 +323,7 @@ def multigenEnerGradScore(xyzs, eners, grads, template, portlist, state_template
                     return 1
 
             ret = gevent.joinall([gevent.spawn(func, n, calc_ener, calc_grad)
-                            for n in range(len(xyzs))])
+                                  for n in range(len(xyzs))])
             if sum([i.value for i in ret if i.value is not None]) > 1e-5:
                 raise ParamFail("Emmmmmm")
             # compare
@@ -343,7 +355,7 @@ def multidrawGradient(xyzs, grads, var, template, portlist, state_templates=[]):
         conf["diag"][n]["parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
     # gen halmitonian
     client = EVBClient(portlist)
-    ret = client.initialize(conf)
+    client.initialize(conf)
     # calc forces
     calc_ener = np.zeros((len(xyzs),))
     calc_grad = np.zeros((len(xyzs), xyzs[0].ravel().shape[0]))
@@ -389,7 +401,7 @@ def multidrawHess(xyz, hess, mass, var, template, portlist, state_templates=[], 
             "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
     # gen halmitonian
     client = EVBClient(portlist)
-    ret = client.initialize(conf)
+    client.initialize(conf)
     # calc hess (unit in kJ / mol / A^2)
     oxyz = xyz.value_in_unit(unit.angstrom).ravel()
     dxyz = np.eye(oxyz.shape[0])
