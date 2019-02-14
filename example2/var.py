@@ -56,7 +56,7 @@ def main():
     var_list = [f(VAR, i) for i in var_list]
     result = []
     for v in var_list:
-        min_result = optimize.minimize(gfunc, newvar, jac="2-point", method="L-BFGS-B",
+        min_result = optimize.minimize(gfunc, v, jac="2-point", method="L-BFGS-B",
                                        options=dict(maxiter=200, disp=True, gtol=0.1, maxls=10))
         logging.info("Score: %.6f" % min_result.fun + " Result:  " +
                      "  ".join("{}".format(_) for _ in min_result.x))
