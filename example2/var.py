@@ -53,7 +53,9 @@ def main():
                 ret[n] = - v[n]
             else:
                 ret[n] = v[n]
+        return ret
     var_list = [f(VAR, i) for i in var_list]
+    print(var_list[0])
     result = []
     for v in var_list:
         min_result = optimize.minimize(gfunc, v, jac="2-point", method="L-BFGS-B",
