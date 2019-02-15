@@ -43,7 +43,7 @@ def main():
 #                state_templates=state_templates)
 #    multidrawHess(xyz, hess, mass, VAR, template, portlist, state_templates=state_templates)
     var_list = []
-    for i in range(2 ** (VAR.shape[0] - 3) - 1):
+    for i in range(int(sys.argv[1]), 2 ** (VAR.shape[0] - 3) - 1):
         var_list.append("{:0>15}".format(bin(i)[2:]))
 
     def f(v, l):
@@ -82,7 +82,7 @@ if __name__ == '__main__':
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG)
     ch.setFormatter(formatter)
-    fh = logging.FileHandler(sys.argv[1])
+    fh = logging.FileHandler(sys.argv[2])
     fh.setFormatter(formatter)
     fh.setLevel(logging.DEBUG)
     logger.addHandler(ch)
