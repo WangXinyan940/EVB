@@ -116,7 +116,7 @@ class EVBHamiltonian(object):
 
     def __init__(self, conf):
         try:
-            logging.debug("CONF: %s"%str(conf))
+            logging.error("CONF: %s"%str(conf))
             if not isinstance(conf, dict):
                 raise BaseException("""conf object "%s" is not a dict"""%str(conf))
             self.diag = []

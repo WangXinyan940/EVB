@@ -43,21 +43,22 @@ def main():
 #                state_templates=state_templates)
 #    multidrawHess(xyz, hess, mass, VAR, template, portlist, state_templates=state_templates)
     var_list = []
-    for i in range(2 ** VAR.shape[0] - 1):
+    for i in range(2 ** (VAR.shape[0] - 3) - 1):
         var_list.append("{:0>15}".format(bin(i)[2:]))
 
     def f(v, l):
         ret = np.zeros(v.shape)
         for n, i in enumerate(l):
             if i == "0":
-                ret[n] = - v[n]
-            else:
                 ret[n] = v[n]
+            else:
+                ret[n] = - v[n]
         return ret
-    var_list = [f(VAR, i) for i in var_list]
+    var_list = [[i, f(VAR, i)] for i in var_list]
     print(var_list[0])
     result = []
-    for v in var_list:
+    for s, v in var_list:
+        logging.info("STR: %s  VAR: %s"%(s, str(v)))
         min_result = optimize.minimize(gfunc, v, jac="2-point", method="L-BFGS-B",
                                        options=dict(maxiter=200, disp=True, gtol=0.1, maxls=10))
         logging.info("Score: %.6f" % min_result.fun + " Result:  " +
@@ -83,6 +84,7 @@ if __name__ == '__main__':
     ch.setFormatter(formatter)
     fh = logging.FileHandler(sys.argv[1])
     fh.setFormatter(formatter)
+    fh.setLevel(logging.DEBUG)
     logger.addHandler(ch)
     logger.addHandler(fh)
     main()

@@ -56,7 +56,7 @@ class EVBServer(object):
                     sock.send("ERROR".encode("utf-8"))
                     sock.close()
                     continue
-                    
+
                 elif data[:4] == "ENER":
                     logging.info("Calculate energy.")
                     xyz = np.array([float(i) for i in data[4:].split()])
@@ -114,7 +114,7 @@ class EVBClient(object):
     def initialize(self, conf):
         def init(pt, n):
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(10)
+            s.settimeout(30)
             s.connect(("127.0.0.1", pt))
             data = "INIT" + json.dumps(conf)
             s.send(data.encode("utf-8"))
@@ -126,7 +126,7 @@ class EVBClient(object):
             s.close()
             return 0
 
-        res = gevent.joinall([gevent.spawn(init, pt, n, ifok)
+        res = gevent.joinall([gevent.spawn(init, pt, n)
                         for n, pt in enumerate(self.port_list)])
         if sum([i.value for i in res]) > 1e-5:
             raise InitFail("Init fail. Job stop.")
@@ -177,6 +177,8 @@ class EVBClient(object):
             s.close()
             ret = np.array([float(i) for i in ret.strip().split()])
             return ans, unit.Quantity(ret[0], unit.kilojoule_per_mole), unit.Quantity(ret[1:].reshape((-1, 3)), unit.kilojoule_per_mole / unit.angstrom)
+        except ParamFail as e:
+            raise e
         except BaseException as e:
             logging.debug("Client error " + str(type(e)) + str(e))
             s.close()
@@ -319,14 +321,15 @@ def multigenEnerGradScore(xyzs, eners, grads, template, portlist, state_template
                     sem.release()
                     return 0
                 except BaseException as e:
-                    logging.debug("Parallel: " + str(e))
+                    if not isinstance(e, ParamFail):
+                        logging.debug("Parallel: " + str(type(e)) + str(e))
                     sem.release()
                     return 1
 
             ret = gevent.joinall([gevent.spawn(func, n, calc_ener, calc_grad)
                                   for n in range(len(xyzs))])
-            if sum([i.value for i in ret if i.value is not None]) > 1e-5:
-                raise ParamFail("Emmmmmm")
+            if sum([1 if ((i.value == 1) or (i.value is None)) else 0 for i in ret]) > 1e-5:
+                raise ParamFail("input parameter is unphysical")
             # compare
             ref_ener = np.array(
                 [i.value_in_unit(unit.kilojoule / unit.mole) for i in eners])
@@ -340,7 +343,7 @@ def multigenEnerGradScore(xyzs, eners, grads, template, portlist, state_template
             var_grad = np.sqrt(((calc_grad - ref_grad) ** 2).mean())
             return a_grad * var_grad + a_ener * var_ener
         except ParamFail as e:
-            logging.debug("Score: " + str(e))
+            logging.debug("REPORT: " + str(e))
             return 1e12
     return valid
 
