@@ -56,6 +56,7 @@ class EVBServer(object):
                     sock.send("ERROR".encode("utf-8"))
                     sock.close()
                     continue
+                    
                 elif data[:4] == "ENER":
                     logging.info("Calculate energy.")
                     xyz = np.array([float(i) for i in data[4:].split()])
@@ -74,17 +75,17 @@ class EVBServer(object):
                 else:
                     logging.warn("Unknown message. Did nothing.")
                     sock.send("ERROR".encode("utf-8"))
+                sock.close()
             except Exception as e:
-                logging.error("COLLAPSE: " + str(e))
+                logging.error("COLLAPSE: " + str(type(e)) + str(e))
                 sock.send("ERROR".encode("utf-8"))
-            finally:
                 sock.close()
 
     def _initialize(self, conf):
         try:
             self.H = evb.EVBHamiltonian(conf)
         except Exception as e:
-            logging.error("INIT FAIL: " + str(e))
+            logging.error("INIT FAIL: " + str(type(e)) + str(e))
             raise e
 
     def _energy(self, xyz):
@@ -111,9 +112,7 @@ class EVBClient(object):
         self.state = 0  # 0: haven't init, 1: init success, 2: init fail
 
     def initialize(self, conf):
-        ifok = np.zeros((len(self.port_list),))
-
-        def init(pt, n, ifok):
+        def init(pt, n):
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             s.settimeout(10)
             s.connect(("127.0.0.1", pt))
@@ -121,13 +120,15 @@ class EVBClient(object):
             s.send(data.encode("utf-8"))
             ret = s.recv(1024).decode("utf-8")
             if not ret == "FINISH":
-                ifok[n] = 1
                 logging.error("INIT FAIL!!!")
+                s.close()
+                return 1
             s.close()
+            return 0
 
-        gevent.joinall([gevent.spawn(init, pt, n, ifok)
+        res = gevent.joinall([gevent.spawn(init, pt, n, ifok)
                         for n, pt in enumerate(self.port_list)])
-        if ifok.sum() > 1e-5:
+        if sum([i.value for i in res]) > 1e-5:
             raise InitFail("Init fail. Job stop.")
 
     def calcEnergy(self, xyz):
@@ -177,7 +178,7 @@ class EVBClient(object):
             ret = np.array([float(i) for i in ret.strip().split()])
             return ans, unit.Quantity(ret[0], unit.kilojoule_per_mole), unit.Quantity(ret[1:].reshape((-1, 3)), unit.kilojoule_per_mole / unit.angstrom)
         except BaseException as e:
-            logging.debug("Client error " + str(e))
+            logging.debug("Client error " + str(type(e)) + str(e))
             s.close()
             raise e
 
