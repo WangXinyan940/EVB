@@ -59,8 +59,9 @@ def main():
     result = []
     for s, v in var_list:
         logging.info("STR: %s  VAR: %s"%(s, str(v)))
-        min_result = optimize.minimize(gfunc, v, jac="2-point", method="L-BFGS-B",
-                                       options=dict(maxiter=200, disp=True, gtol=0.1, maxls=10))
+        min_result = optimize.minimize(gfunc, v, jac="2-point", method="L-BFGS-B", options=dict(maxiter=200, disp=True, gtol=0.1, maxls=10))
+        #min_result = optimize.minimize(gfunc, v, jac="2-point", method="powell", options=dict(maxiter=200, disp=True, ftol=0.01))
+        #min_result = optimize.minimize(gfunc, v, jac="2-point", hess="2-point", method="Newton-CG", options=dict(maxiter=200, disp=True, xtol=0.1, maxls=10))
         logging.info("Score: %.6f" % min_result.fun + " Result:  " +
                      "  ".join("{}".format(_) for _ in min_result.x))
         result.append([min_result.fun, min_result.x])
