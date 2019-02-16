@@ -82,6 +82,16 @@ class EVBServer(object):
                 sock.close()
 
     def _initialize(self, conf):
+        for _ in range(4):
+            try:
+                self.H = evb.EVBHamiltonian(conf)
+                return
+            except ValueError as e:
+                logging.error("INIT FAIL: " + str(type(e)) + str(e) + " RETRY: %i"%(_ + 1))
+                continue
+            except Exception as e:
+                logging.error("INIT FAIL: " + str(type(e)) + str(e))
+                raise e
         try:
             self.H = evb.EVBHamiltonian(conf)
         except Exception as e:
