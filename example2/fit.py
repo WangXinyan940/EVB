@@ -417,56 +417,52 @@ def basinhopping(score, var, niter=20, bounds=None, T=1.0, pert=7.0, method="L-B
     return sorttraj
 
 
-def bayesianoptimizing(score, center, niter, nstart=20, sigma=1.0, norm=True, kappa=1.5, gpr_sample=100000, return_traj=False):
+def bayesianoptimizing(score, bound, niter, init=[], nstart=20, kappa=1.5, gpr_sample=100000, return_traj=False):
     # start
 #    center = np.array(center)
 #    assert (center[:, 1] > center[:, 0]).all()
-    traj = []
-#    for vi in init_value:
-#        traj.append([vi, score(vi)])
-    for _ in range(nstart):
-        #ti = np.random.random(bounds.shape[0]) * (bounds[:, 1] - bounds[:, 0]) + bounds[:, 0]
-        ti = np.random.normal(center, (sigma * np.abs(center)) if norm else sigma, size=center.shape)
-        traj.append([ti, score(ti)])
-    gp = GaussianProcessRegressor(
-        kernel=Matern(nu=2.5), n_restarts_optimizer=25)
+    center = (bound[:,1] + bound[:,0]) / 2
+    dist = bound[:,1] - bound[:,0]
+
+    if len(init) == 0:
+        traj = []
+    #    for vi in init_value:
+    #        traj.append([vi, score(vi)])
+        for _ in range(nstart):
+            #ti = np.random.random(bounds.shape[0]) * (bounds[:, 1] - bounds[:, 0]) + bounds[:, 0]
+            ti = (np.random.random(center.shape) - 0.5) * dist + center
+            traj.append([ti, score(ti)])
+    else:
+        traj = init
+
     train_features = np.array([i[0] for i in traj])
     train_score = np.array([i[1] for i in traj])
-    gp.fit(train_features, train_score)
-
-    #x_tries = np.random.uniform(bounds[:, 0], bounds[:, 1], size=(gpr_sample, bounds.shape[0]))
-    x_tries = np.random.normal(center, (sigma * np.abs(center)) if norm else sigma, size=(gpr_sample, center.shape[0]))
-    mean, std = gp.predict(x_tries, return_std=True)
-    acquisition_fucntion_values = mean - kappa * std
-    x_min = x_tries[acquisition_fucntion_values.argmin()]
-
-    traj.append([x_min, score(x_min)])
-    global_val, global_min = sorted(traj, key=lambda x: x[1])[0]
-    logging.info("min f:{}  min var: [{}]".format(
-        global_min, ", ".join("{}".format(i) for i in global_val)))
+    global_val, global_min = train_features[np.argmin(train_score),:], np.min(train_score)
 
     for ni in range(niter):
         print("Round", ni, "Score", global_min)
-        train_features = np.vstack((train_features, x_min.reshape((1, -1))))
-        train_score = np.append(train_score,score(x_min))
+        logging.info("GPR running")
         gp = GaussianProcessRegressor(
             kernel=Matern(nu=2.5), n_restarts_optimizer=25)
         gp.fit(train_features, train_score)
+        logging.info("GPR finish")
 
         #x_tries = np.random.uniform(bounds[:, 0], bounds[:, 1], size=(gpr_sample, bounds.shape[0]))
         while True:
-            x_tries = np.random.normal(center, (sigma * np.abs(center)) if norm else sigma, size=(gpr_sample, center.shape[0]))
+            x_tries = (np.random.random((gpr_sample, center.shape[0])) - 0.5) * dist + center
             mean, std = gp.predict(x_tries, return_std=True)
             acquisition_fucntion_values = mean - kappa * std
             if acquisition_fucntion_values.min() < global_min:
                 x_min = x_tries[acquisition_fucntion_values.argmin()]
                 break
 
+        train_features = np.vstack((train_features, x_min.reshape((1, -1))))
+        train_score = np.append(train_score,score(x_min))
         global_val, global_min = train_features[np.argmin(train_score),:], np.min(train_score)
         logging.info("min f:{}  min var: [{}]".format(
             global_min, ", ".join("{}".format(i) for i in global_val)))
 
     if return_traj:
-        return global_val, global_min, traj
+        return global_min, global_val, traj
     else:
-        return global_val, global_min
+        return global_min, global_val

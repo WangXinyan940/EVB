@@ -7,11 +7,11 @@ import os
 HESSFILE = "freq.fchk"
 TEMPFILE = "conf.temp"
 STATE_TEMPFILE = []
-VAR = np.array([0.0, -741.0, -786.0, 
-                2.9815490408547145,  -6.60189337219787,  2.964041042557548,  0.6425293989814105,
-                2.5422464186777733,  0.25567283154978065,  9.141012520108227,  -5.41697473407947,
-                0.21740949899967177,  -8.810512182322086,  -0.7280651221148342,  -3.1822952690936885])
-portlist = [i for i in range(5000,5017)]
+VAR = np.array([-2.99996370e+01, -7.41000364e+02, -7.86000000e+02,  2.99022095e+00,
+       -6.60355792e+00,  2.95636207e+00,  6.33177734e-01,  2.54112121e+00,
+        2.51113116e-01,  9.14101252e+00, -5.41697473e+00,  2.17409499e-01,
+       -8.81051218e+00, -7.28065122e-01, -3.18229527e+00])
+portlist = [i for i in range(5000,5012)]
 
 def main():
     xyz, hess = getCHKHess(HESSFILE)
@@ -37,14 +37,19 @@ def main():
     hfunc = multigenHessScore(xyz, hess, mass, template, portlist,
                          state_templates=state_templates, a_diag=1.0, a_offdiag=50.00)
     gfunc = multigenEnerGradScore(xyzs, eners, grads, template, portlist)
+    efunc = multigenEnerScore(xyzs, eners, template, portlist)
     tfunc = lambda v: hfunc(v) + gfunc(v)
 #    drawPicture(xyzs, eners, grads, VAR, template,
 #                state_templates=state_templates)
 #    multidrawHess(xyz, hess, mass, VAR, template, portlist, state_templates=state_templates)
-    traj = basinhopping(gfunc, VAR, niter=100, T=5.0, pert=5.0)
+    #min_result = optimize.minimize(efunc, VAR, jac="2-point", method="L-BFGS-B", options=dict(maxiter=200, disp=True, gtol=0.01, maxls=10))
+    #print(min_result)
+    pfunc = lambda x:efunc(x * VAR)
+    traj = basinhopping(pfunc, np.zeros(VAR.shape) + 1, niter=100, T=5.0, pert=0.15)
     print(traj[0][0])
-    multidrawHess(xyz, hess, mass, traj[0][0], template, portlist,
-             state_templates=state_templates)
+    multidrawGradient(xyzs, eners, grads, traj[0][0] * VAR, template, portlist)
+    #multidrawHess(xyz, hess, mass, traj[0][0], template, portlist,
+    #         state_templates=state_templates)
 
 
 if __name__ == '__main__':

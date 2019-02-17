@@ -89,6 +89,9 @@ class EVBServer(object):
             except ValueError as e:
                 logging.error("INIT FAIL: " + str(type(e)) + str(e) + " RETRY: %i"%(_ + 1))
                 continue
+            except FileNotFoundError as e:
+                logging.error("INIT FAIL: " + str(type(e)) + str(e) + " RETRY: %i"%(_ + 1))
+                continue
             except Exception as e:
                 logging.error("INIT FAIL: " + str(type(e)) + str(e))
                 raise e
@@ -118,13 +121,11 @@ class EVBClient(object):
 
     def __init__(self, port_list=[]):
         self.port_list = port_list
-        self.pi = 0
         self.state = 0  # 0: haven't init, 1: init success, 2: init fail
 
     def initialize(self, conf):
         def init(pt, n):
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.settimeout(30)
             s.connect(("127.0.0.1", pt))
             data = "INIT" + json.dumps(conf)
             s.send(data.encode("utf-8"))
@@ -142,30 +143,33 @@ class EVBClient(object):
             raise InitFail("Init fail. Job stop.")
 
     def calcEnergy(self, xyz):
-        xyz_no_unit = xyz.value_in_unit(unit.angstrom)
-        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        pt = self.port_list[self.pi % len(self.port_list)]
-        self.pi += 1
-        s.settimeout(10)
-        s.connect(("127.0.0.1", pt))
-        data = "ENER" + " ".join("%18.10f" % i for i in xyz_no_unit.ravel())
-        s.send(data.encode("utf-8"))
-        ret = s.recv(1024).decode("utf-8")
-        if ret == "ERROR":
-            ans = 1
+        try:
+            xyz_no_unit = xyz.value_in_unit(unit.angstrom)
+            s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            pt = np.random.choice(self.port_list)
+            s.connect(("127.0.0.1", pt))
+            data = "ENER" + " ".join("%18.10f" % i for i in xyz_no_unit.ravel())
+            s.send(data.encode("utf-8"))
+            ret = s.recv(1024).decode("utf-8")
+            if ret == "ERROR":
+                ans = 1
+                s.close()
+                raise ParamFail("Value NaNs")
+            else:
+                ans = 0
             s.close()
-            raise ParamFail("Value NaNs")
-        else:
-            ans = 0
-        s.close()
-        return ans, unit.Quantity(float(ret), unit.kilojoule_per_mole)
+            return ans, unit.Quantity(float(ret), unit.kilojoule_per_mole)
+        except ParamFail as e:
+            raise e
+        except BaseException as e:
+            logging.debug("Client error " + str(type(e)) + str(e))
+            s.close()
+            raise e
 
     def calcEnergyGrad(self, xyz):
         xyz_no_unit = xyz.value_in_unit(unit.angstrom)
         s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        pt = self.port_list[self.pi % len(self.port_list)]
-        self.pi += 1
-        s.settimeout(10)
+        pt = np.random.choice(self.port_list)
         s.connect(("127.0.0.1", pt))
         try:
             data = "GRAD" + " ".join("%18.10f" %
@@ -357,8 +361,62 @@ def multigenEnerGradScore(xyzs, eners, grads, template, portlist, state_template
             return 1e12
     return valid
 
+def multigenEnerScore(xyzs, eners, template, portlist, state_templates=[], a_ener=1.00, a_grad=1.00):
+    """
+    Generate score func.
+    """
+    def valid(var):
+        """
+        Return score::float
+        """
+        # gen state files
+        try:
+            for name, temp in state_templates:
+                with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
+                    f.write(temp.render(var=np.abs(var)))
+            # gen config file
+            conf = json.loads(template.render(var=var))
+            for n, fn in enumerate(state_templates):
+                conf["diag"][n][
+                    "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
+            # gen halmitonian
+            client = EVBClient(portlist)
+            client.initialize(conf)
+            # calc forces
+            calc_ener = np.zeros((len(xyzs),))
 
-def multidrawGradient(xyzs, grads, var, template, portlist, state_templates=[]):
+            def func(n, e_array):
+                sem.acquire()
+                try:
+                    _, energy = client.calcEnergy(xyzs[n])
+                    if _ == 0:
+                        e_array[n] = energy.value_in_unit(
+                            unit.kilojoule / unit.mole)
+                    sem.release()
+                    return 0
+                except BaseException as e:
+                    if not isinstance(e, ParamFail):
+                        logging.debug("Parallel: " + str(type(e)) + str(e))
+                    sem.release()
+                    return 1
+
+            ret = gevent.joinall([gevent.spawn(func, n, calc_ener)
+                                  for n in range(len(xyzs))])
+            if sum([1 if ((i.value == 1) or (i.value is None)) else 0 for i in ret]) > 1e-5:
+                raise ParamFail("input parameter is unphysical")
+            # compare
+            ref_ener = np.array(
+                [i.value_in_unit(unit.kilojoule / unit.mole) for i in eners])
+            var_ener = np.sqrt(
+                (np.abs((calc_ener - calc_ener.max()) - (ref_ener - ref_ener.max())) ** 2).sum())
+            return var_ener
+        except ParamFail as e:
+            logging.debug("REPORT: " + str(e))
+            return 1e12
+    return valid
+
+
+def multidrawGradient(xyzs, eners, grads, var, template, portlist, state_templates=[]):
 
     for name, temp in state_templates:
         with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
@@ -376,15 +434,34 @@ def multidrawGradient(xyzs, grads, var, template, portlist, state_templates=[]):
 
     def func(n, e_array, g_array):
         sem.acquire()
-        _, energy, gradient = client.calcEnergyGrad(xyzs[n])
-        e_array[n] = energy.value_in_unit(unit.kilojoule / unit.mole)
-        g_array[n, :] = gradient.value_in_unit(
-            unit.kilojoule_per_mole / unit.angstrom).ravel()
-        sem.release()
+        try:
+            _, energy, gradient = client.calcEnergyGrad(xyzs[n])
+            if _ == 0:
+                e_array[n] = energy.value_in_unit(
+                    unit.kilojoule / unit.mole)
+                g_array[n, :] = gradient.value_in_unit(
+                    unit.kilojoule_per_mole / unit.angstrom).ravel()
+            sem.release()
+            return 0
+        except BaseException as e:
+            if not isinstance(e, ParamFail):
+                logging.debug("Parallel: " + str(type(e)) + str(e))
+            sem.release()
+            return 1
+
 
     gevent.joinall([gevent.spawn(func, n, calc_ener, calc_grad)
                     for n in range(len(xyzs))])
     # compare
+    calc_ener = calc_ener - calc_ener.max()
+    ref_ener = np.array([i.value_in_unit(unit.kilojoule_per_mole) for i in eners])
+    ref_ener = ref_ener - ref_ener.max()
+    plt.scatter(calc_ener, ref_ener)
+    plt.plot([calc_ener.min(), calc_ener.max()],
+             [calc_ener.min(), calc_ener.max()])
+    plt.xlabel("CALC ENERGY")
+    plt.ylabel("REF ENERGY")
+    plt.show()
     calc_grad = calc_grad.ravel()
     ref_grad = np.array([i.value_in_unit(
         unit.kilojoule_per_mole / unit.angstrom).ravel() for i in grads]).ravel()

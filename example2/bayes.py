@@ -42,36 +42,16 @@ def main():
 #    drawPicture(xyzs, eners, grads, VAR, template,
 #                state_templates=state_templates)
 #    multidrawHess(xyz, hess, mass, VAR, template, portlist, state_templates=state_templates)
-    var_list = []
-    for i in range(int(sys.argv[1]), 2 ** (VAR.shape[0] - 3) - 1):
-        var_list.append("{:0>15}".format(bin(i)[2:]))
+    with open("varitem.log", "r") as f:
+        text = f.readlines()
 
-    def f(v, l):
-        ret = np.zeros(v.shape)
-        for n, i in enumerate(l):
-            if i == "0":
-                ret[n] = v[n]
-            else:
-                ret[n] = - v[n]
-        return ret
-    var_list = [[i, f(VAR, i)] for i in var_list]
-    print(var_list[0])
-    result = []
-    for s, v in var_list:
-        #logging.info("STR: %s  VAR: %s"%(s, str(v)))
-        #min_result = optimize.minimize(gfunc, v, jac="2-point", method="L-BFGS-B", options=dict(maxiter=200, disp=True, gtol=0.5, maxls=10))
-        #min_result = optimize.minimize(gfunc, v, jac="2-point", method="powell", options=dict(maxiter=200, disp=True, ftol=0.01))
-        #min_result = optimize.minimize(gfunc, v, jac="2-point", hess="2-point", method="Newton-CG", options=dict(maxiter=200, disp=True, xtol=0.1, maxls=10))
-        minfunc = gfunc(v)
-        minvar = v
-        logging.info("Score: %.6f" %minfunc  + " Result:  " +
-                     "  ".join("{}".format(_) for _ in minvar))
-        result.append([minfunc, minvar])
-    sort_result = sorted(result, key=lambda x: x[0])
-    logging.info("Minimum score: %.6f" % sort_result[0][0] + " Result:  " +
-                 "  ".join("{}".format(_) for _ in sort_result[0][1]))
-    multidrawHess(xyz, hess, mass, sort_result[0][0], template, portlist,
-                  state_templates=state_templates)
+    text = [i.strip().split() for i in text if "Score:" in i]
+    init = [[np.array([float(j) for j in i[10:]]), float(i[8])] for i in text if float(i[8]) < 1e6]
+    bound = np.array([[-1000, 1000], [-1000, 1000], [-1000, 1000], [-30, 30], [-30, 30], 
+                      [-30, 30], [-30, 30], [-30, 30], [-30, 30], [-30, 30],
+                      [-30, 30], [-30, 30], [-30, 30], [-30, 30], [-30, 30]])
+
+    s, v = bayesianoptimizing(gfunc, bound, 200, init=init, kappa=1.5, gpr_sample=10000, return_traj=False)
 
 
 if __name__ == '__main__':
@@ -85,7 +65,7 @@ if __name__ == '__main__':
     ch = logging.StreamHandler()
     ch.setLevel(logging.DEBUG)
     ch.setFormatter(formatter)
-    fh = logging.FileHandler(sys.argv[2])
+    fh = logging.FileHandler(sys.argv[1])
     fh.setFormatter(formatter)
     fh.setLevel(logging.DEBUG)
     logger.addHandler(ch)
