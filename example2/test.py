@@ -16,7 +16,7 @@ VAR = np.array([1.0082351104674565,  0.7968146375146995,  0.9999951128571232,  0
        239797.592, 0.10148, 216287.696, 0.152, 
        187957.832, ])
 
-portlist = [7000]
+portlist = [i for i in range(5000,5012)]
 
 from fit import *
 HESSFILE = "freq.fchk"
@@ -42,4 +42,4 @@ for fname in STATE_TEMPFILE:
 
 conf = json.loads(template.render(var=VAR))
 
-multifit.multidrawGradient(xyzs, eners, grads, VAR, template, portlist, state_templates=state_templates)
+multifit.multiGradVar(xyzs, eners, grads, VAR, template, portlist, state_templates=state_templates)
