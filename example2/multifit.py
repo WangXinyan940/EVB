@@ -4,6 +4,7 @@ import gevent
 from gevent import pool
 import json
 import logging
+import fit
 import socket
 import numpy as np
 import simtk.unit as unit
@@ -218,13 +219,13 @@ def multigenHessScore(xyz, hess, mass, template, portlist, state_templates=[], d
         # gen state files
         try:
             for name, temp in state_templates:
-                with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
+                with open("%s/%s.xml" % (fit.TEMPDIR.name, name), "w") as f:
                     f.write(temp.render(var=np.abs(var)))
             # gen config file
             conf = json.loads(template.render(var=var))
             for n, fn in enumerate(state_templates):
                 conf["diag"][n][
-                    "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
+                    "parameter"] = "%s/%s.xml" % (fit.TEMPDIR.name, fn[0])
             # gen halmitonian
             client = EVBClient(portlist)
             client.initialize(conf)
@@ -309,13 +310,13 @@ def multigenEnerGradScore(xyzs, eners, grads, template, portlist, state_template
         # gen state files
         try:
             for name, temp in state_templates:
-                with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
+                with open("%s/%s.xml" % (fit.TEMPDIR.name, name), "w") as f:
                     f.write(temp.render(var=np.abs(var)))
             # gen config file
             conf = json.loads(template.render(var=var))
             for n, fn in enumerate(state_templates):
                 conf["diag"][n][
-                    "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
+                    "parameter"] = "%s/%s.xml" % (fit.TEMPDIR.name, fn[0])
             # gen halmitonian
             client = EVBClient(portlist)
             client.initialize(conf)
@@ -372,13 +373,13 @@ def multigenEnerScore(xyzs, eners, template, portlist, state_templates=[], a_ene
         # gen state files
         try:
             for name, temp in state_templates:
-                with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
+                with open("%s/%s.xml" % (fit.TEMPDIR.name, name), "w") as f:
                     f.write(temp.render(var=np.abs(var)))
             # gen config file
             conf = json.loads(template.render(var=var))
             for n, fn in enumerate(state_templates):
                 conf["diag"][n][
-                    "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
+                    "parameter"] = "%s/%s.xml" % (fit.TEMPDIR.name, fn[0])
             # gen halmitonian
             client = EVBClient(portlist)
             client.initialize(conf)
@@ -419,12 +420,12 @@ def multigenEnerScore(xyzs, eners, template, portlist, state_templates=[], a_ene
 def multidrawGradient(xyzs, eners, grads, var, template, portlist, state_templates=[]):
 
     for name, temp in state_templates:
-        with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
+        with open("%s/%s.xml" % (fit.TEMPDIR.name, name), "w") as f:
             f.write(temp.render(var=np.abs(var)))
     # gen config file
     conf = json.loads(template.render(var=var))
     for n, fn in enumerate(state_templates):
-        conf["diag"][n]["parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
+        conf["diag"][n]["parameter"] = "%s/%s.xml" % (fit.TEMPDIR.name, fn[0])
     # gen halmitonian
     client = EVBClient(portlist)
     client.initialize(conf)
@@ -483,13 +484,13 @@ def multidrawHess(xyz, hess, mass, var, template, portlist, state_templates=[], 
     theta_p = np.dot(qvI, np.dot(theta, qv))
 
     for name, temp in state_templates:
-        with open("%s/%s.xml" % (TEMPDIR.name, name), "w") as f:
+        with open("%s/%s.xml" % (fit.TEMPDIR.name, name), "w") as f:
             f.write(temp.render(var=np.abs(var)))
     # gen config file
     conf = json.loads(template.render(var=var))
     for n, fn in enumerate(state_templates):
         conf["diag"][n][
-            "parameter"] = "%s/%s.xml" % (TEMPDIR.name, fn[0])
+            "parameter"] = "%s/%s.xml" % (fit.TEMPDIR.name, fn[0])
     # gen halmitonian
     client = EVBClient(portlist)
     client.initialize(conf)
