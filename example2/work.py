@@ -38,8 +38,8 @@ def main():
 
     hfunc = multigenHessScore(xyz, hess, mass, template, portlist,
                          state_templates=state_templates, a_diag=1.0, a_offdiag=50.00)
-    gfunc = multigenEnerGradScore(xyzs, eners, grads, template, portlist)
-    efunc = multigenEnerScore(xyzs, eners, template, portlist)
+    gfunc = multigenEnerGradScore(xyzs, eners, grads, template, portlist, state_templates=state_templates)
+    efunc = multigenEnerScore(xyzs, eners, template, portlist, state_templates=state_templates)
     tfunc = lambda v: hfunc(v) + gfunc(v)
 #    drawPicture(xyzs, eners, grads, VAR, template,
 #                state_templates=state_templates)
