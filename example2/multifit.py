@@ -549,3 +549,51 @@ def multidrawHess(xyz, hess, mass, var, template, portlist, state_templates=[], 
     plt.xlabel("QM Freq")
     plt.ylabel("FF Freq")
     plt.show()
+
+
+def multiGradVar(xyzs, eners, grads, var, template, portlist, state_templates=[]):
+
+    for name, temp in state_templates:
+        with open("%s/%s.xml" % (fit.TEMPDIR.name, name), "w") as f:
+            f.write(temp.render(var=np.abs(var)))
+    # gen config file
+    conf = json.loads(template.render(var=var))
+    for n, fn in enumerate(state_templates):
+        conf["diag"][n]["parameter"] = "%s/%s.xml" % (fit.TEMPDIR.name, fn[0])
+    # gen halmitonian
+    client = EVBClient(portlist)
+    client.initialize(conf)
+    # calc forces
+    calc_ener = np.zeros((len(xyzs),))
+    calc_grad = np.zeros((len(xyzs), xyzs[0].ravel().shape[0]))
+
+    def func(n, e_array, g_array):
+        sem.acquire()
+        try:
+            _, energy, gradient = client.calcEnergyGrad(xyzs[n])
+            if _ == 0:
+                e_array[n] = energy.value_in_unit(
+                    unit.kilojoule / unit.mole)
+                g_array[n, :] = gradient.value_in_unit(
+                    unit.kilojoule_per_mole / unit.angstrom).ravel()
+            sem.release()
+            return 0
+        except BaseException as e:
+            if not isinstance(e, ParamFail):
+                logging.debug("Parallel: " + str(type(e)) + str(e))
+            sem.release()
+            return 1
+
+
+    gevent.joinall([gevent.spawn(func, n, calc_ener, calc_grad)
+                    for n in range(len(xyzs))])
+    # compare
+    calc_ener = calc_ener - calc_ener.max()
+    ref_ener = np.array([i.value_in_unit(unit.kilojoule_per_mole) for i in eners])
+    ref_ener = ref_ener - ref_ener.max()
+    var_ener = np.power(ref_ener - calc_ener, 2)
+    ref_grad = np.array([i.value_in_unit(
+        unit.kilojoule_per_mole / unit.angstrom).ravel() for i in grads]).reshape(calc_grad)
+    var_grad = np.power(ref_grad - calc_grad, 2)
+    for i in range(int(calc_grad.shape[1] / 3)):
+        print("ATOM {}: {}".format(i, var_grad[:,i:i+3].mean()))
