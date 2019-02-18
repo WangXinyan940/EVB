@@ -6,7 +6,7 @@ import os
 
 HESSFILE = "freq.fchk"
 TEMPFILE = "conf.temp"
-STATE_TEMPFILE = []
+STATE_TEMPFILE = ["state_1.temp", "state_2.temp", "state_3.temp"]
 VAR = np.array([-2.99996370e+01, -7.41000364e+02, -7.86000000e+02,  2.99022095e+00,
        -6.60355792e+00,  2.95636207e+00,  6.33177734e-01,  2.54112121e+00,
         2.51113116e-01,  9.14101252e+00, -5.41697473e+00,  2.17409499e-01,
