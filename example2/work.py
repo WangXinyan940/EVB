@@ -41,15 +41,16 @@ def main():
     gfunc = multigenEnerGradScore(xyzs, eners, grads, template, portlist, state_templates=state_templates)
     efunc = multigenEnerScore(xyzs, eners, template, portlist, state_templates=state_templates)
     tfunc = lambda v: hfunc(v) + gfunc(v)
+    pfunc = lambda x:efunc(x * VAR)
 #    drawPicture(xyzs, eners, grads, VAR, template,
 #                state_templates=state_templates)
 #    multidrawHess(xyz, hess, mass, VAR, template, portlist, state_templates=state_templates)
-    #min_result = optimize.minimize(efunc, VAR, jac="2-point", method="L-BFGS-B", options=dict(maxiter=200, disp=True, gtol=0.01, maxls=10))
-    #print(min_result)
-    pfunc = lambda x:efunc(x * VAR)
-    traj = basinhopping(pfunc, np.zeros(VAR.shape) + 1, niter=100, T=5.0, pert=0.15)
-    print(traj[0][0])
-    multidrawGradient(xyzs, eners, grads, traj[0][0] * VAR, template, portlist)
+    min_result = optimize.minimize(gfunc, VAR, jac="2-point", method="L-BFGS-B", options=dict(maxiter=5000, disp=True, gtol=0.0001))
+    print(min_result)
+    
+    #traj = basinhopping(pfunc, np.zeros(VAR.shape) + 1, niter=100, T=5.0, pert=0.15)
+    #print(traj[0][0])
+    #multidrawGradient(xyzs, eners, grads, traj[0][0] * VAR, template, portlist)
     #multidrawHess(xyz, hess, mass, traj[0][0], template, portlist,
     #         state_templates=state_templates)
 
