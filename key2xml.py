@@ -83,14 +83,16 @@ def readTinkerXYZ(fname):
         name_l.append(name)
         coord_l.append([x, y, z])
         tp_l.append(tp)
-        if index not in topology and link[0] != 0:
-            topology[index] = []
+        if link[0] != 0:
+            if index not in topology:
+                topology[index] = []
             for l in link:
                 if l not in topology[index]:
                     topology[index].append(l)
                 if l not in topology:
                     topology[l] = []
-                topology[l].append(index)
+                if index not in topology[l]:
+                    topology[l].append(index)
     # Deal with name_l
     newname_l = []
     ncount = {}
