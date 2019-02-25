@@ -18,16 +18,34 @@ assert len(args.template) == len(args.number)
 
 natom = 1
 nres = 1
+atomlist = []
+bondlist = []
+
+for n,p in enumerate(args.number):
+    with open(args.template[n], "r") as f:
+        text = f.readlines()
+        atext = [i[6:].strip().split() for i in text if "HETATM" in i]
+        btext = [i.strip().split() for i in text if "CONECT" in i]
+        pdbtemp = [[i[1],i[2],i[-1]] for i in atext]
+        bondtemp = [[int(j) for j in i[1:]] for i in btext]
+
+    for nrep in range(p):
+        ishift = natom - 1
+        for brep in bondtemp:
+            tmp = "CONECT"
+            for bi in brep:
+                tmp += "{i:>5d}".format(i=bi+ishift)
+            tmp +="\n"
+            bondlist.append(tmp)
+        for arep in range(len(pdbtemp)):
+            x, y, z = xyz[natom-1]
+            a_name, res_name, elem = pdbtemp[arep]
+            atomlist.append(crdline.format(serial=natom, name=a_name, resname=res_name, rindex=nres, x=x, y=y, z=z, elem=elem))
+            natom += 1
+        nres += 1
 with open(args.output, "w") as fout:
-    for n,p in enumerate(args.number):
-        with open(args.template[n], "r") as f:
-            text = f.readlines()
-            text = [i[6:].strip().split() for i in text if "HETATM" in i]
-            pdbtemp = [[i[1],i[2],i[-1]] for i in text]
-        for nrep in range(p):
-            for arep in range(len(pdbtemp)):
-                x, y, z = xyz[natom-1]
-                a_name, res_name, elem = pdbtemp[arep]
-                fout.write(crdline.format(serial=natom, name=a_name, resname=res_name, rindex=nres, x=x, y=y, z=z, elem=elem))
-                natom += 1
-            nres += 1
+    for l in atomlist:
+        fout.write(l)
+    for l in bondlist:
+        fout.write(l)
+    fout.write("END\n")
